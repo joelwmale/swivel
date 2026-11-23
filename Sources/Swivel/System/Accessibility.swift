@@ -82,6 +82,38 @@ enum Permissions {
         CGPreflightScreenCaptureAccess()
     }
 
+    static let screenRecordingProbeFlag = "--probe-screen-recording"
+
+    /// A running process keeps the Screen Recording answer it got at launch,
+    /// so a new grant is only visible to a fresh copy of the app. Blocks.
+    static func screenRecordingGrantedSinceLaunch() -> Bool {
+        guard !hasScreenRecording, let executable = Bundle.main.executableURL else {
+            return false
+        }
+
+        let probe = Process()
+        probe.executableURL = executable
+        probe.arguments = [screenRecordingProbeFlag]
+
+        do {
+            try probe.run()
+        } catch {
+            return false
+        }
+        probe.waitUntilExit()
+        return probe.terminationStatus == 0
+    }
+
+    /// Quits first and reopens from a shell: two live copies would fight over
+    /// the system switcher, and the one quitting would turn it back on.
+    static func relaunch() {
+        let reopen = Process()
+        reopen.executableURL = URL(fileURLWithPath: "/bin/sh")
+        reopen.arguments = ["-c", "sleep 0.5; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        try? reopen.run()
+        NSApp.terminate(nil)
+    }
+
     static func requestAccessibility() {
         let prompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         AXIsProcessTrustedWithOptions([prompt: true] as CFDictionary)

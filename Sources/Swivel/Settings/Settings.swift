@@ -73,6 +73,8 @@ enum SettingKey {
     static let excludedApps = "excludedApps"
     static let hintAssignments = "hintAssignments"
     static let onboardingCompleted = "onboardingCompleted"
+    static let awaitingScreenRecording = "awaitingScreenRecording"
+    static let relaunchedForScreenRecording = "relaunchedForScreenRecording"
 }
 
 enum Settings {
@@ -121,6 +123,18 @@ enum Settings {
     static var onboardingCompleted: Bool {
         get { defaults.bool(forKey: SettingKey.onboardingCompleted) }
         set { defaults.set(newValue, forKey: SettingKey.onboardingCompleted) }
+    }
+
+    /// Set when the user asks for Screen Recording, so the relaunch macOS
+    /// requires lands back on that step to confirm it.
+    static var awaitingScreenRecording: Bool {
+        get { defaults.bool(forKey: SettingKey.awaitingScreenRecording) }
+        set { defaults.set(newValue, forKey: SettingKey.awaitingScreenRecording) }
+    }
+
+    static var relaunchedForScreenRecording: Bool {
+        get { defaults.bool(forKey: SettingKey.relaunchedForScreenRecording) }
+        set { defaults.set(newValue, forKey: SettingKey.relaunchedForScreenRecording) }
     }
 
     static var hintAssignments: [String: String] {

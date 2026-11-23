@@ -8,7 +8,10 @@ enum OnboardingStep: Int, CaseIterable {
         if !Permissions.hasAccessibility {
             return .accessibility
         }
-        return Permissions.hasScreenRecording ? .view : .screenRecording
+        if !Permissions.hasScreenRecording || Settings.awaitingScreenRecording {
+            return .screenRecording
+        }
+        return .view
     }
 
     var isGranted: Bool {
@@ -32,6 +35,7 @@ struct OnboardingView: View {
 
     private static let grantedPause: Duration = .milliseconds(900)
     private let permissionPoll = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+    private let relaunchPoll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     init(startingAt step: OnboardingStep = .firstIncomplete, onFinish: @escaping () -> Void) {
         self.onFinish = onFinish
@@ -54,6 +58,9 @@ struct OnboardingView: View {
         .frame(width: 460, height: 440)
         .onReceive(permissionPoll) { _ in
             noteIfGranted()
+        }
+        .onReceive(relaunchPoll) { _ in
+            relaunchIfScreenRecordingGranted()
         }
         .onReceive(NotificationCenter.default.publisher(for: .switcherDidOpen)) { _ in
             withAnimation(.spring(duration: 0.4)) {
@@ -79,10 +86,13 @@ struct OnboardingView: View {
             PermissionPage(
                 symbol: "macwindow.on.rectangle",
                 title: "Allow Screen Recording",
-                detail: "Only used to preview a window while you hold Space. macOS will ask to reopen Swivel.",
+                detail: "Only used to preview a window while you hold Space. If macOS asks, choose Quit & Reopen. Setup continues here.",
                 grantLabel: "Grant Screen Recording",
                 isGranted: isGranted,
-                grant: Permissions.requestScreenRecording,
+                grant: {
+                    Settings.awaitingScreenRecording = true
+                    Permissions.requestScreenRecording()
+                },
                 skip: { advance(to: .view) }
             )
         case .view:
@@ -173,7 +183,30 @@ struct OnboardingView: View {
         }
     }
 
+    private func relaunchIfScreenRecordingGranted() {
+        // One automatic relaunch only: if the probe and this process ever
+        // disagree after it, relaunching again would loop.
+        guard step == .screenRecording, Settings.awaitingScreenRecording, !isGranted,
+              !Settings.relaunchedForScreenRecording
+        else {
+            return
+        }
+
+        DispatchQueue.global(qos: .utility).async {
+            if Permissions.screenRecordingGrantedSinceLaunch() {
+                DispatchQueue.main.async {
+                    Settings.relaunchedForScreenRecording = true
+                    Permissions.relaunch()
+                }
+            }
+        }
+    }
+
     private func advance(to next: OnboardingStep) {
+        if step == .screenRecording {
+            Settings.awaitingScreenRecording = false
+            Settings.relaunchedForScreenRecording = false
+        }
         withAnimation(.spring(duration: 0.5)) {
             step = next
             isGranted = false
