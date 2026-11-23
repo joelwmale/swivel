@@ -36,16 +36,18 @@ final class SwitcherPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    func place(on screen: NSScreen, size: CGSize, pinTop: Bool) {
+    /// `anchor` is the size kept centred; a larger `size` grows right and down
+    /// from it, so the list stays put when the preview opens.
+    func place(on screen: NSScreen, size: CGSize, anchor: CGSize, pinTop: Bool) {
         let area = screen.visibleFrame
         // Search results change the height on every keystroke; pinning the top
         // edge stops the query line jumping around.
         let top = pinTop
             ? area.maxY - area.height * (1 - SwitcherLayout.maximumScreenFraction) / 2
-            : area.midY + size.height / 2
+            : area.midY + anchor.height / 2
 
         setFrame(
-            CGRect(x: area.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height),
+            CGRect(x: area.midX - anchor.width / 2, y: top - size.height, width: size.width, height: size.height),
             display: true
         )
     }

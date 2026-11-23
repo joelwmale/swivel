@@ -191,12 +191,13 @@ final class WindowStore {
                     windowID: windowID,
                     pid: app.pid,
                     appName: app.name,
-                    title: title.isEmpty ? app.name : title,
+                    title: title.isEmpty ? app.name : WindowTitle.clean(title, appName: app.name),
                     icon: app.icon,
                     isMinimized: isMinimized,
                     isAppHidden: app.isHidden,
                     isOnCurrentSpace: spaces.isEmpty || !spaces.isDisjoint(with: currentSpaces),
-                    element: element
+                    element: element,
+                    frame: element.position.map { CGRect(origin: $0, size: size) }
                 )
             }
 
@@ -211,7 +212,8 @@ final class WindowStore {
                     isMinimized: false,
                     isAppHidden: app.isHidden,
                     isOnCurrentSpace: true,
-                    element: nil
+                    element: nil,
+                    frame: nil
                 ))
             }
             result.append(contentsOf: appWindows)

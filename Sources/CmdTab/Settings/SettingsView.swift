@@ -6,11 +6,13 @@ struct SettingsView: View {
     @AppStorage(SettingKey.searchHotkey) private var searchHotkey = SearchHotkey.optionTab
     @AppStorage(SettingKey.theme) private var theme = ThemeChoice.glass
     @AppStorage(SettingKey.keyHints) private var keyHints = true
-    @AppStorage(SettingKey.showPreview) private var showPreview = true
+    @AppStorage(SettingKey.showPreview) private var showPreview = false
     @AppStorage(SettingKey.allSpaces) private var allSpaces = true
     @AppStorage(SettingKey.showMinimized) private var showMinimized = true
     @AppStorage(SettingKey.showHidden) private var showHidden = true
-    @AppStorage(SettingKey.showWindowlessApps) private var showWindowlessApps = true
+    @AppStorage(SettingKey.showWindowlessApps) private var showWindowlessApps = false
+    @AppStorage(SettingKey.currentDisplayOnly) private var currentDisplayOnly = false
+    @AppStorage(SettingKey.excludedApps) private var excludedAppsStorage = ""
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchAtLoginError: String?
@@ -42,7 +44,7 @@ struct SettingsView: View {
                     ForEach(ThemeChoice.allCases) { Text($0.label).tag($0) }
                 }
                 Toggle("Key hints", isOn: $keyHints)
-                Toggle("Window preview", isOn: $showPreview)
+                Toggle("Always show preview", isOn: $showPreview)
             }
 
             Section("Windows") {
@@ -50,13 +52,28 @@ struct SettingsView: View {
                 Toggle("Minimized windows", isOn: $showMinimized)
                 Toggle("Windows of hidden apps", isOn: $showHidden)
                 Toggle("Apps with no windows", isOn: $showWindowlessApps)
+                Toggle("Only windows on the switcher's display", isOn: $currentDisplayOnly)
+            }
+
+            Section("Excluded apps") {
+                ForEach(excludedApps.sorted(), id: \.self) { name in
+                    LabeledContent(name) {
+                        Button("Remove") { setExcluded(name, false) }
+                    }
+                }
+                Menu("Exclude an app") {
+                    ForEach(excludableApps, id: \.self) { name in
+                        Button(name) { setExcluded(name, true) }
+                    }
+                }
             }
 
             Section("Keys") {
                 KeyRow(keys: "⌘ Tab", action: "All windows")
                 KeyRow(keys: "⌘ `", action: "Windows of the current app")
                 KeyRow(keys: "⇧", action: "Reverse")
-                KeyRow(keys: "⌘ + hint", action: "Jump to a window")
+                KeyRow(keys: "⌘ hint", action: "Jump to an app, repeat for its next window")
+                KeyRow(keys: "Space (hold)", action: "Preview window")
                 KeyRow(keys: "⌘ ⇧ W", action: "Close window")
                 KeyRow(keys: "⌘ ⇧ M", action: "Minimize window")
                 KeyRow(keys: "⌘ ⇧ H", action: "Hide app")
@@ -78,6 +95,28 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 440)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var excludedApps: Set<String> {
+        ExcludedApps.decode(excludedAppsStorage)
+    }
+
+    private var excludableApps: [String] {
+        NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .compactMap(\.localizedName)
+            .filter { !excludedApps.contains($0) }
+            .sorted()
+    }
+
+    private func setExcluded(_ name: String, _ excluded: Bool) {
+        var names = excludedApps
+        if excluded {
+            names.insert(name)
+        } else {
+            names.remove(name)
+        }
+        excludedAppsStorage = ExcludedApps.encode(names)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

@@ -24,6 +24,14 @@ extension AXUIElement {
         return AXValueGetValue(value, .cgSize, &size) ? size : nil
     }
 
+    var position: CGPoint? {
+        guard let value: AXValue = attribute(kAXPositionAttribute) else {
+            return nil
+        }
+        var point = CGPoint.zero
+        return AXValueGetValue(value, .cgPoint, &point) ? point : nil
+    }
+
     var isSwitchableWindow: Bool {
         guard let subrole: String = attribute(kAXSubroleAttribute) else {
             return false

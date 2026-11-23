@@ -62,16 +62,61 @@ import Testing
 }
 
 @Suite struct KeyHintsTests {
-    @Test func uniqueInitialGetsOneLetter() {
-        #expect(KeyHints.assign(to: ["Brave Browser", "Finder", "1Password"]) == ["b", "f", "1"])
+    @Test func earlierAppsGetTheSingleLetter() {
+        let hints = KeyHints.assign(["Brave Browser", "Bear", "Finder"], existing: [:])
+
+        #expect(hints == ["Brave Browser": "b", "Bear": "be", "Finder": "f"])
     }
 
-    @Test func sharedInitialGetsASecondKeyAndNoHintPrefixesAnother() {
-        let hints = KeyHints.assign(to: ["Brave Browser", "Code", "Brave Browser", "Bear"])
+    @Test func learnedHintsNeverChange() {
+        let hints = KeyHints.assign(["Bear", "Brave Browser"], existing: ["Brave Browser": "b"])
 
-        #expect(hints == ["ba", "c", "bs", "bd"])
-        for hint in hints {
-            #expect(hints.filter { $0.hasPrefix(hint) }.count == 1)
-        }
+        #expect(hints["Brave Browser"] == "b")
+        #expect(hints["Bear"] == "be")
+    }
+
+    @Test func neverAssignsADoubledInitial() {
+        let hints = KeyHints.assign(["Brave Browser", "BBEdit"], existing: [:])
+
+        #expect(hints["BBEdit"] == "be")
+    }
+
+    @Test func repeatingAHintCyclesInsteadOfRestarting() {
+        let hints = ["b", "be", "f"]
+        let first = KeyHints.step(typed: "", key: "b", hints: hints)
+        let second = KeyHints.step(typed: first.typed, key: "b", hints: hints)
+
+        #expect(first == KeyHints.Step(typed: "b", hint: "b", cycles: false))
+        #expect(second == KeyHints.Step(typed: "b", hint: "b", cycles: true))
+    }
+
+    @Test func secondLetterReachesTheLongerHint() {
+        let step = KeyHints.step(typed: "b", key: "e", hints: ["b", "be", "f"])
+
+        #expect(step == KeyHints.Step(typed: "be", hint: "be", cycles: false))
+    }
+
+    @Test func unrelatedKeyStartsOver() {
+        #expect(KeyHints.step(typed: "b", key: "f", hints: ["b", "be", "f"]).hint == "f")
+        #expect(KeyHints.step(typed: "b", key: "z", hints: ["b", "be", "f"]).hint == nil)
+    }
+}
+
+@Suite struct WindowTitleTests {
+    @Test func stripsTheAppNameSuffix() {
+        #expect(WindowTitle.clean("Pull requests - Brave", appName: "Brave Browser") == "Pull requests")
+        #expect(WindowTitle.clean("Inbox — Mail", appName: "Mail") == "Inbox")
+    }
+
+    @Test func putsTheProjectFirstForEditors() {
+        let title = WindowTitle.clean("AppDelegate.swift — cmd-tab — Visual Studio Code", appName: "Code")
+
+        #expect(title == "cmd-tab — AppDelegate.swift")
+    }
+
+    @Test func leavesUnrelatedSuffixesAlone() {
+        #expect(WindowTitle.clean("Project Plan – Milestone 2", appName: "Pages") == "Project Plan – Milestone 2")
+        #expect(WindowTitle.clean("Notes - B", appName: "Brave Browser") == "Notes - B")
+        #expect(WindowTitle.clean("Brave", appName: "Brave Browser") == "Brave")
     }
 }

@@ -13,6 +13,8 @@ struct WindowInfo: Identifiable {
     let isAppHidden: Bool
     let isOnCurrentSpace: Bool
     let element: AXUIElement?
+    /// Global coordinates with a top-left origin, as CoreGraphics reports displays.
+    let frame: CGRect?
 
     static func id(forWindow windowID: CGWindowID) -> String { "w\(windowID)" }
     static func id(forApp pid: pid_t) -> String { "a\(pid)" }

@@ -69,6 +69,9 @@ enum SettingKey {
     static let showMinimized = "showMinimized"
     static let showHidden = "showHidden"
     static let showWindowlessApps = "showWindowlessApps"
+    static let currentDisplayOnly = "currentDisplayOnly"
+    static let excludedApps = "excludedApps"
+    static let hintAssignments = "hintAssignments"
 }
 
 enum Settings {
@@ -80,11 +83,12 @@ enum Settings {
             SettingKey.searchHotkey: SearchHotkey.optionTab.rawValue,
             SettingKey.theme: ThemeChoice.glass.rawValue,
             SettingKey.keyHints: true,
-            SettingKey.showPreview: true,
+            SettingKey.showPreview: false,
             SettingKey.allSpaces: true,
             SettingKey.showMinimized: true,
             SettingKey.showHidden: true,
-            SettingKey.showWindowlessApps: true,
+            SettingKey.showWindowlessApps: false,
+            SettingKey.currentDisplayOnly: false,
         ])
     }
 
@@ -107,6 +111,27 @@ enum Settings {
     static var showMinimized: Bool { defaults.bool(forKey: SettingKey.showMinimized) }
     static var showHidden: Bool { defaults.bool(forKey: SettingKey.showHidden) }
     static var showWindowlessApps: Bool { defaults.bool(forKey: SettingKey.showWindowlessApps) }
+    static var currentDisplayOnly: Bool { defaults.bool(forKey: SettingKey.currentDisplayOnly) }
+
+    static var excludedApps: Set<String> {
+        ExcludedApps.decode(defaults.string(forKey: SettingKey.excludedApps) ?? "")
+    }
+
+    static var hintAssignments: [String: String] {
+        get { defaults.dictionary(forKey: SettingKey.hintAssignments) as? [String: String] ?? [:] }
+        set { defaults.set(newValue, forKey: SettingKey.hintAssignments) }
+    }
+}
+
+/// Stored as one app name per line so SwiftUI's `@AppStorage` can bind to it.
+enum ExcludedApps {
+    static func decode(_ stored: String) -> Set<String> {
+        Set(stored.split(separator: "\n").map(String.init))
+    }
+
+    static func encode(_ names: Set<String>) -> String {
+        names.sorted().joined(separator: "\n")
+    }
 }
 
 enum KeyCode {

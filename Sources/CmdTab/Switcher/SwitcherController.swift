@@ -27,6 +27,9 @@ final class SwitcherController {
     private var candidates: [WindowInfo] = []
     private var panels: [SwitcherPanel] = []
     private var visibleScreens: [NSScreen] = []
+    private var sessionScreens: [NSScreen] = []
+    private var scopeBounds: CGRect?
+    private var isPeeking = false
     private var pendingShow: DispatchWorkItem?
     private var clickMonitor: Any?
 
@@ -57,6 +60,9 @@ final class SwitcherController {
             handleKeyDown(key: key, flags: flags, event: event, mode: mode)
             return true
         default:
+            if key == KeyCode.space {
+                setPeeking(false)
+            }
             return true
         }
     }
@@ -105,6 +111,8 @@ final class SwitcherController {
             perform(.minimize)
         case KeyCode.h where command && backwards:
             perform(.hide)
+        case KeyCode.space where !mode.isSearch:
+            setPeeking(true)
         case KeyCode.delete where mode.isSearch:
             model.query = command ? "" : String(model.query.dropLast())
             applyQuery(resetSelection: true)
@@ -149,6 +157,9 @@ final class SwitcherController {
         model.theme = Settings.theme.theme
         model.typedHint = ""
         model.selectedID = nil
+        isPeeking = false
+        sessionScreens = Self.targetScreens()
+        scopeBounds = Settings.currentDisplayOnly ? Self.scopeBounds(for: sessionScreens) : nil
 
         reloadCandidates()
 
@@ -222,11 +233,17 @@ final class SwitcherController {
             return
         }
 
+        let excluded = Settings.excludedApps
+
         candidates = store.windows.filter { window in
             if case .sameApp(let pid) = mode, window.pid != pid || window.windowID == nil {
                 return false
             }
-            return (Settings.allSpaces || window.isOnCurrentSpace)
+            if let scopeBounds, let frame = window.frame, !scopeBounds.contains(CGPoint(x: frame.midX, y: frame.midY)) {
+                return false
+            }
+            return !excluded.contains(window.appName)
+                && (Settings.allSpaces || window.isOnCurrentSpace)
                 && (Settings.showMinimized || !window.isMinimized)
                 && (Settings.showHidden || !window.isAppHidden)
                 && (Settings.showWindowlessApps || window.windowID != nil)
@@ -239,11 +256,8 @@ final class SwitcherController {
         let previousIndex = model.selectedIndex ?? 0
 
         if model.query.isEmpty {
-            let showsHints = Settings.keyHints && !model.isSearching
-            let hints = showsHints ? KeyHints.assign(to: candidates.map(\.appName)) : []
-            model.rows = candidates.enumerated().map { index, window in
-                SwitcherRow(window: window, hint: showsHints ? hints[index] : "")
-            }
+            let hints = hintsForCandidates()
+            model.rows = candidates.map { SwitcherRow(window: $0, hint: hints[$0.appName] ?? "") }
         } else {
             model.rows = candidates
                 .compactMap { window -> (SwitcherRow, Int)? in
@@ -272,23 +286,52 @@ final class SwitcherController {
         }
     }
 
-    /// Hints are prefix-free, so an exact match can switch straight away.
-    private func typeHint(_ key: String) {
-        let hints = model.rows.map(\.hint)
-        var typed = model.typedHint + key
-        if !hints.contains(where: { $0.hasPrefix(typed) }) {
-            typed = key
+    private func hintsForCandidates() -> [String: String] {
+        guard Settings.keyHints, case .allWindows = mode else {
+            return [:]
         }
-        guard hints.contains(where: { $0.hasPrefix(typed) }) else {
-            model.typedHint = ""
+
+        let known = Settings.hintAssignments
+        let hints = KeyHints.assign(candidates.map(\.appName), existing: known)
+        if hints != known {
+            Settings.hintAssignments = hints
+        }
+        return hints
+    }
+
+    private func typeHint(_ key: String) {
+        var visibleHints: [String] = []
+        for hint in model.rows.map(\.hint) where !hint.isEmpty && !visibleHints.contains(hint) {
+            visibleHints.append(hint)
+        }
+
+        let step = KeyHints.step(typed: model.typedHint, key: key, hints: visibleHints)
+        model.typedHint = step.typed
+
+        let appRows = model.rows.indices.filter { model.rows[$0].hint == step.hint }
+        guard let first = appRows.first else {
             return
         }
 
-        model.typedHint = typed
-        if let index = hints.firstIndex(of: typed) {
-            select(index: index)
-            commit()
+        if step.cycles {
+            let current = appRows.firstIndex(of: model.selectedIndex ?? -1) ?? -1
+            select(index: appRows[(current + 1) % appRows.count])
+        } else if first == 0, appRows.count > 1 {
+            // Row 0 is the window already in front; asking for its app means the next one.
+            select(index: appRows[1])
+        } else {
+            select(index: first)
         }
+    }
+
+    private func setPeeking(_ peeking: Bool) {
+        guard peeking != isPeeking else {
+            return
+        }
+
+        isPeeking = peeking
+        model.showsPreview = peeking || Settings.showPreview
+        select(index: model.selectedIndex ?? -1)
     }
 
     private func move(by offset: Int) {
@@ -331,7 +374,7 @@ final class SwitcherController {
             return
         }
 
-        visibleScreens = Self.targetScreens()
+        visibleScreens = sessionScreens
         while panels.count < visibleScreens.count {
             panels.append(SwitcherPanel(model: model))
         }
@@ -354,14 +397,35 @@ final class SwitcherController {
 
     private func layout() {
         for (panel, screen) in zip(panels, visibleScreens) {
-            let size = SwitcherLayout.size(
-                rows: model.rows.count,
-                isSearching: model.isSearching,
-                showsPreview: model.showsPreview,
-                screenHeight: screen.visibleFrame.height
+            func size(showsPreview: Bool) -> CGSize {
+                SwitcherLayout.size(
+                    rows: model.rows.count,
+                    isSearching: model.isSearching,
+                    showsPreview: showsPreview,
+                    screenHeight: screen.visibleFrame.height
+                )
+            }
+
+            panel.place(
+                on: screen,
+                size: size(showsPreview: model.showsPreview),
+                anchor: size(showsPreview: isPeeking ? Settings.showPreview : model.showsPreview),
+                pinTop: model.isSearching
             )
-            panel.place(on: screen, size: size, pinTop: model.isSearching)
         }
+    }
+
+    private static func screenUnderPointer() -> NSScreen? {
+        let pointer = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+    }
+
+    /// With the switcher on every screen there is no single "its display", so
+    /// the pointer decides.
+    private static func scopeBounds(for screens: [NSScreen]) -> CGRect? {
+        let screen = screens.count == 1 ? screens.first : screenUnderPointer()
+        let displayID = screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+        return displayID.map(CGDisplayBounds)
     }
 
     private static func targetScreens() -> [NSScreen] {
@@ -377,8 +441,7 @@ final class SwitcherController {
         case .focused:
             chosen = [fallback]
         case .mouse:
-            let pointer = NSEvent.mouseLocation
-            chosen = [screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? fallback]
+            chosen = [screenUnderPointer() ?? fallback]
         }
         return chosen.compactMap { $0 }
     }
