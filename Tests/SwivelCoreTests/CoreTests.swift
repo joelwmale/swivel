@@ -1,5 +1,5 @@
 import Testing
-@testable import CmdTabCore
+@testable import SwivelCore
 
 @Suite struct FuzzyMatcherTests {
     @Test func rejectsQueriesThatAreNotASubsequence() {

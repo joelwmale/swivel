@@ -1,4 +1,4 @@
-import CmdTabCore
+import SwivelCore
 import Foundation
 
 enum SwitcherRows {

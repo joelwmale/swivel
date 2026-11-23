@@ -122,7 +122,7 @@ private struct RowView: View {
 
             Group {
                 if let icon = row.window.icon {
-                    Image(nsImage: icon).resizable()
+                    Image(nsImage: icon).resizable().interpolation(.high)
                 } else {
                     Color.clear
                 }

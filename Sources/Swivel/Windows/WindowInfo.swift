@@ -1,6 +1,6 @@
 import AppKit
 import ApplicationServices
-import CmdTabCore
+import SwivelCore
 
 struct WindowInfo: Identifiable {
     /// `w<windowID>` for a window, `a<pid>` for an app with no windows.

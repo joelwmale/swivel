@@ -1,6 +1,6 @@
 import AppKit
 import ApplicationServices
-import CmdTabCore
+import SwivelCore
 
 /// Keeps a most-recently-used list of every switchable window. Accessibility
 /// calls block on the target app, so they all run on `queue`; `windows` and the
@@ -10,7 +10,7 @@ final class WindowStore {
 
     private(set) var windows: [WindowInfo] = []
 
-    private let queue = DispatchQueue(label: "cmdtab.windows", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "swivel.windows", qos: .userInteractive)
     private var mru = MRUList<String>()
     private var pendingRefresh: DispatchWorkItem?
 

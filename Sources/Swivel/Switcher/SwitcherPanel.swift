@@ -50,6 +50,7 @@ final class SwitcherPanel: NSPanel {
             CGRect(x: area.midX - anchor.width / 2, y: top - size.height, width: size.width, height: size.height),
             display: true
         )
+        invalidateShadow()
     }
 
     /// A layer corner radius does not clip a behind-window blur; a stretchable

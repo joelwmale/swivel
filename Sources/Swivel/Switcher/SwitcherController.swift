@@ -1,5 +1,5 @@
 import AppKit
-import CmdTabCore
+import SwivelCore
 
 /// Runs one switching session at a time: from the hotkey that opens the
 /// switcher to the key release, Return or Escape that ends it.

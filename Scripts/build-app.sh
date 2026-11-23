@@ -1,19 +1,19 @@
 #!/bin/bash
-# Builds build/CmdTab.app.
+# Builds build/Swivel.app.
 #   --install  copy it to /Applications
 #   --run      quit any running copy and launch the new one
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-APP="build/CmdTab.app"
-BUNDLE_ID="${BUNDLE_ID:-com.joelmale.cmdtab}"
+APP="build/Swivel.app"
+BUNDLE_ID="${BUNDLE_ID:-com.joelmale.swivel}"
 
 swift build -c release
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$(swift build -c release --show-bin-path)/CmdTab" "$APP/Contents/MacOS/CmdTab"
+cp "$(swift build -c release --show-bin-path)/Swivel" "$APP/Contents/MacOS/Swivel"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -21,10 +21,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleExecutable</key><string>CmdTab</string>
+    <key>CFBundleExecutable</key><string>Swivel</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
-    <key>CFBundleName</key><string>CmdTab</string>
+    <key>CFBundleName</key><string>Swivel</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
@@ -44,13 +44,13 @@ echo "Built $APP (signed: ${IDENTITY:-ad-hoc})"
 for flag in "$@"; do
     case "$flag" in
         --install)
-            rm -rf /Applications/CmdTab.app
-            cp -R "$APP" /Applications/CmdTab.app
-            APP="/Applications/CmdTab.app"
+            rm -rf /Applications/Swivel.app
+            cp -R "$APP" /Applications/Swivel.app
+            APP="/Applications/Swivel.app"
             echo "Installed $APP"
             ;;
         --run)
-            pkill -x CmdTab && while pgrep -x CmdTab >/dev/null; do sleep 0.1; done || true
+            pkill -x Swivel && while pgrep -x Swivel >/dev/null; do sleep 0.1; done || true
             open "$APP"
             ;;
         *)

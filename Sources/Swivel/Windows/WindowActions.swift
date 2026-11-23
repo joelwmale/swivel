@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 
 enum WindowActions {
-    private static let queue = DispatchQueue(label: "cmdtab.actions", qos: .userInteractive)
+    private static let queue = DispatchQueue(label: "swivel.actions", qos: .userInteractive)
 
     static func focus(_ window: WindowInfo) {
         let app = NSRunningApplication(processIdentifier: window.pid)
@@ -78,7 +78,7 @@ enum WindowActions {
 }
 
 enum Thumbnailer {
-    private static let queue = DispatchQueue(label: "cmdtab.thumbnails", qos: .userInitiated)
+    private static let queue = DispatchQueue(label: "swivel.thumbnails", qos: .userInitiated)
 
     static func capture(_ windowID: CGWindowID, completion: @escaping (NSImage?) -> Void) {
         guard Permissions.hasScreenRecording else {

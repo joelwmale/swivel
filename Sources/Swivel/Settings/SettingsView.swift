@@ -27,7 +27,7 @@ struct SettingsView: View {
                     PermissionRow(name: "Screen Recording", isGranted: Permissions.hasScreenRecording) {
                         Permissions.requestScreenRecording()
                     }
-                    Text("Screen Recording is only used for window previews. It applies after relaunching CmdTab.")
+                    Text("Screen Recording is only used for window previews. It applies after relaunching Swivel.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

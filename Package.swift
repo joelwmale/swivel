@@ -2,18 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "CmdTab",
+    name: "Swivel",
     platforms: [.macOS(.v14)],
     targets: [
-        .target(name: "CmdTabCore"),
+        .target(name: "SwivelCore"),
         .executableTarget(
-            name: "CmdTab",
-            dependencies: ["CmdTabCore"],
+            name: "Swivel",
+            dependencies: ["SwivelCore"],
             linkerSettings: [
                 .unsafeFlags(["-F/System/Library/PrivateFrameworks", "-framework", "SkyLight"]),
             ]
         ),
-        .testTarget(name: "CmdTabCoreTests", dependencies: ["CmdTabCore"]),
+        .testTarget(name: "SwivelCoreTests", dependencies: ["SwivelCore"]),
     ],
     swiftLanguageModes: [.v5]
 )
