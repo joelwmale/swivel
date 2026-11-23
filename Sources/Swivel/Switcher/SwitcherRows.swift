@@ -31,23 +31,38 @@ enum SwitcherRows {
         return hints
     }
 
-    static func rows(for candidates: [WindowInfo], hints: [String: String]) -> [SwitcherRow] {
-        candidates.map { SwitcherRow(window: $0, hint: hints[$0.appName] ?? "") }
+    static func rows(for candidates: [WindowInfo], hints: [String: String], expanded: Set<String>) -> [SwitcherRow] {
+        candidates.flatMap { window -> [SwitcherRow] in
+            let isExpanded = expanded.contains(window.id) && !window.tabs.isEmpty
+            let row = SwitcherRow(window: window, hint: hints[window.appName] ?? "", isExpanded: isExpanded)
+            let tabs = window.tabs.enumerated().map { index, tab in
+                SwitcherRow(window: window, tab: tab, tabIndex: index, isNested: true)
+            }
+            return [row] + (isExpanded ? tabs : [])
+        }
     }
 
     /// Best match first; equal scores keep their most-recently-used order.
+    /// Tabs are searched too, except the selected one, which its window's row
+    /// already stands for.
     static func rows(for candidates: [WindowInfo], matching query: String) -> [SwitcherRow] {
-        let scored = candidates.enumerated().compactMap { position, window -> (row: SwitcherRow, score: Int, position: Int)? in
-            guard let match = FuzzyMatcher.match(query, in: "\(window.appName) \(window.title)") else {
+        let searchable = candidates.flatMap { window -> [SwitcherRow] in
+            let tabs = window.tabs.enumerated()
+                .filter { !$0.element.isSelected }
+                .map { SwitcherRow(window: window, tab: $0.element, tabIndex: $0.offset) }
+            return [SwitcherRow(window: window)] + tabs
+        }
+
+        let scored = searchable.enumerated().compactMap { position, row -> (row: SwitcherRow, score: Int, position: Int)? in
+            let appName = row.window.appName
+            guard let match = FuzzyMatcher.match(query, in: "\(appName) \(row.title)") else {
                 return nil
             }
 
-            let titleStart = window.appName.count + 1
-            let row = SwitcherRow(
-                window: window,
-                appNameMatches: Set(match.indices.filter { $0 < titleStart }),
-                titleMatches: Set(match.indices.filter { $0 >= titleStart }.map { $0 - titleStart })
-            )
+            var row = row
+            let titleStart = appName.count + 1
+            row.appNameMatches = Set(match.indices.filter { $0 < titleStart })
+            row.titleMatches = Set(match.indices.filter { $0 >= titleStart }.map { $0 - titleStart })
             return (row, match.score, position)
         }
 

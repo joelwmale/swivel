@@ -72,6 +72,7 @@ struct SettingsView: View {
                 KeyRow(keys: "⌘ `", action: "Windows of the current app")
                 KeyRow(keys: "⇧", action: "Reverse")
                 KeyRow(keys: "⌘ hint", action: "Jump to an app, repeat for its next window")
+                KeyRow(keys: "→  ←", action: "Show or hide a window's tabs")
                 KeyRow(keys: "Space (hold)", action: "Preview window")
                 KeyRow(keys: "⌘ ⇧ W", action: "Close window")
                 KeyRow(keys: "⌘ ⇧ M", action: "Minimize window")

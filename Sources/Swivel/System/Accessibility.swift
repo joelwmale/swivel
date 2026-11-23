@@ -39,6 +39,32 @@ extension AXUIElement {
         return subrole == kAXStandardWindowSubrole || subrole == kAXDialogSubrole
     }
 
+    /// Native macOS tabs. Apps that draw their own tab strip, such as browsers,
+    /// have none.
+    var tabs: [WindowTab] {
+        let children: [AXUIElement] = attribute(kAXChildrenAttribute) ?? []
+        let group = children.first { ($0.attribute(kAXRoleAttribute) as String?) == kAXTabGroupRole }
+        let buttons: [AXUIElement] = group?.attribute(kAXTabsAttribute) ?? []
+
+        return buttons.map { button in
+            WindowTab(
+                title: button.attribute(kAXTitleAttribute) ?? "",
+                isSelected: (button.attribute(kAXValueAttribute) as NSNumber?)?.boolValue ?? false,
+                element: button
+            )
+        }
+    }
+
+    /// A tabbed window carries the title of its selected tab; the windows
+    /// behind its other tabs do not.
+    var isBackgroundTab: Bool {
+        let tabs = tabs
+        guard tabs.count > 1, let selected = tabs.first(where: \.isSelected) else {
+            return false
+        }
+        return (attribute(kAXTitleAttribute) as String?) != selected.title
+    }
+
     func perform(_ action: String) {
         AXUIElementPerformAction(self, action as CFString)
     }

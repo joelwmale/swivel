@@ -118,19 +118,29 @@ private struct RowView: View {
     var body: some View {
         HStack(spacing: 10) {
             highlighted(row.window.appName, matches: row.appNameMatches, base: isSelected ? theme.selectedAppName : theme.appName)
+                .opacity(row.isNested ? 0 : 1)
                 .frame(width: SwitcherLayout.appColumnWidth, alignment: .trailing)
 
             Group {
-                if let icon = row.window.icon {
+                if row.isNested {
+                    Circle()
+                        .fill(row.tab?.isSelected == true ? theme.text : theme.secondaryText.opacity(0.5))
+                        .frame(width: 5, height: 5)
+                } else if let icon = row.window.icon {
                     Image(nsImage: icon).resizable().interpolation(.high)
-                } else {
-                    Color.clear
                 }
             }
             .frame(width: 20, height: 20)
 
-            highlighted(row.window.title, matches: row.titleMatches, base: theme.text)
+            highlighted(row.title, matches: row.titleMatches, base: row.isNested && !isSelected ? theme.appName : theme.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !row.window.tabs.isEmpty, row.tab == nil {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(isSelected ? theme.text.opacity(0.75) : theme.secondaryText)
+                    .rotationEffect(.degrees(row.isExpanded ? 90 : 0))
+            }
 
             if !row.hint.isEmpty {
                 Keycap(hint: row.hint, typed: typedHint, isSelected: isSelected, theme: theme)

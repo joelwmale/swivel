@@ -17,8 +17,19 @@ struct SwitcherRow: Identifiable {
     var appNameMatches: Set<Int> = []
     var titleMatches: Set<Int> = []
     var hint = ""
+    var tab: WindowTab?
+    var tabIndex = 0
+    /// Shown indented under its window rather than as a row in its own right.
+    var isNested = false
+    var isExpanded = false
 
-    var id: String { window.id }
+    var id: String {
+        tab == nil ? window.id : "\(window.id)#\(tabIndex)"
+    }
+
+    var title: String {
+        tab?.title ?? window.title
+    }
 }
 
 @Observable

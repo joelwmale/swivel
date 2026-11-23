@@ -9,6 +9,8 @@ enum KeyCode {
     static let delete = 51
     static let up = 126
     static let down = 125
+    static let left = 123
+    static let right = 124
     static let q = 12
     static let w = 13
     static let h = 4

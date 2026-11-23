@@ -2,6 +2,12 @@ import AppKit
 import ApplicationServices
 import SwivelCore
 
+struct WindowTab {
+    let title: String
+    let isSelected: Bool
+    let element: AXUIElement
+}
+
 struct WindowInfo: Identifiable {
     /// `w<windowID>` for a window, `a<pid>` for an app with no windows.
     let id: String
@@ -16,6 +22,8 @@ struct WindowInfo: Identifiable {
     let element: AXUIElement?
     /// Global coordinates with a top-left origin, as CoreGraphics reports displays.
     let frame: CGRect?
+    /// Empty unless the window has more than one tab.
+    let tabs: [WindowTab]
 
     static func id(forWindow windowID: CGWindowID) -> String { "w\(windowID)" }
     static func id(forApp pid: pid_t) -> String { "a\(pid)" }
@@ -34,7 +42,8 @@ extension WindowInfo {
             isAppHidden: app.isHidden,
             isOnCurrentSpace: true,
             element: nil,
-            frame: nil
+            frame: nil,
+            tabs: []
         )
     }
 
@@ -46,6 +55,7 @@ extension WindowInfo {
         }
 
         let title: String = element.attribute(kAXTitleAttribute) ?? ""
+        let tabs = element.tabs
         let spaces = WindowServer.spaces(of: windowID)
 
         self.init(
@@ -59,7 +69,8 @@ extension WindowInfo {
             isAppHidden: app.isHidden,
             isOnCurrentSpace: spaces.isEmpty || !spaces.isDisjoint(with: currentSpaces),
             element: element,
-            frame: element.position.map { CGRect(origin: $0, size: size) }
+            frame: element.position.map { CGRect(origin: $0, size: size) },
+            tabs: tabs.count > 1 ? tabs : []
         )
     }
 }

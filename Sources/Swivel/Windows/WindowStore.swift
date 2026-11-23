@@ -204,8 +204,12 @@ final class WindowStore {
         let listed: [AXUIElement] = app.attribute(kAXWindowsAttribute) ?? []
         listed.filter(\.isSwitchableWindow).forEach(add)
 
+        // Every background tab is a window of its own, missing from the list
+        // above. Only a window on another Space is worth restoring from cache.
         for windowID in candidates where elements[windowID] == nil {
-            if let cached = elementCache[windowID], cached.isSwitchableWindow {
+            if let cached = elementCache[windowID],
+               WindowServer.isOnAnotherSpace(windowID, currentSpaces: currentSpaces),
+               cached.isSwitchableWindow, !cached.isBackgroundTab {
                 add(cached)
             }
         }
@@ -217,7 +221,7 @@ final class WindowStore {
         }
 
         if !unresolved.isEmpty {
-            AXUIElement.windowsOnAllSpaces(of: pid).forEach(add)
+            AXUIElement.windowsOnAllSpaces(of: pid).filter { !$0.isBackgroundTab }.forEach(add)
             unswitchableWindowIDs.formUnion(unresolved.filter { elements[$0] == nil })
         }
 

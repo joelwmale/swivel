@@ -4,7 +4,7 @@ import ApplicationServices
 enum WindowActions {
     private static let queue = DispatchQueue(label: "swivel.actions", qos: .userInteractive)
 
-    static func focus(_ window: WindowInfo) {
+    static func focus(_ window: WindowInfo, tab: WindowTab? = nil) {
         let app = NSRunningApplication(processIdentifier: window.pid)
 
         guard let windowID = window.windowID, let element = window.element else {
@@ -22,13 +22,24 @@ enum WindowActions {
                 element.set(kAXMinimizedAttribute, to: kCFBooleanFalse)
             }
 
+            var target = (windowID: windowID, element: element)
+            if let tab {
+                tab.element.perform(kAXPressAction)
+                // Each tab is its own window, so the one to raise is whichever
+                // the press just brought forward.
+                let app = AXUIElementCreateApplication(window.pid)
+                if let main: AXUIElement = app.attribute(kAXMainWindowAttribute), main.windowID != 0 {
+                    target = (main.windowID, main)
+                }
+            }
+
             var psn = ProcessSerialNumber()
             GetProcessForPID(window.pid, &psn)
 
             let userGenerated: UInt32 = 0x200
-            _SLPSSetFrontProcessWithOptions(&psn, windowID, userGenerated)
-            makeKeyWindow(windowID, psn: &psn)
-            element.perform(kAXRaiseAction)
+            _SLPSSetFrontProcessWithOptions(&psn, target.windowID, userGenerated)
+            makeKeyWindow(target.windowID, psn: &psn)
+            target.element.perform(kAXRaiseAction)
         }
     }
 

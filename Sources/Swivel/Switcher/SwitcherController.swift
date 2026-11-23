@@ -18,6 +18,7 @@ final class SwitcherController {
 
     private var mode: SwitcherMode?
     private var candidates: [WindowInfo] = []
+    private var expandedWindowIDs: Set<String> = []
     private var screens: [NSScreen] = []
     private var displayBounds: CGRect?
     private var pendingShow: DispatchWorkItem?
@@ -96,6 +97,10 @@ final class SwitcherController {
             move(by: 1)
         case KeyCode.up:
             move(by: -1)
+        case KeyCode.right where !mode.isSearch:
+            setSelectedWindowExpanded(true)
+        case KeyCode.left where !mode.isSearch:
+            setSelectedWindowExpanded(false)
         case KeyCode.q where command && shift:
             perform(.quit)
         case KeyCode.w where command && shift:
@@ -156,6 +161,7 @@ final class SwitcherController {
         model.typedHint = ""
         model.preview = nil
         model.selectedID = nil
+        expandedWindowIDs = []
 
         reloadCandidates()
 
@@ -186,12 +192,12 @@ final class SwitcherController {
     }
 
     private func commit() {
-        let window = model.selected?.window
+        let row = model.selected
         end()
 
-        if let window {
-            store.touch(window.id)
-            WindowActions.focus(window)
+        if let row {
+            store.touch(row.window.id)
+            WindowActions.focus(row.window, tab: row.tab)
         }
     }
 
@@ -245,9 +251,9 @@ final class SwitcherController {
         if !model.query.isEmpty {
             model.rows = SwitcherRows.rows(for: candidates, matching: model.query)
         } else if Settings.keyHints, case .allWindows = mode {
-            model.rows = SwitcherRows.rows(for: candidates, hints: SwitcherRows.hints(for: candidates))
+            model.rows = SwitcherRows.rows(for: candidates, hints: SwitcherRows.hints(for: candidates), expanded: expandedWindowIDs)
         } else {
-            model.rows = SwitcherRows.rows(for: candidates, hints: [:])
+            model.rows = SwitcherRows.rows(for: candidates, hints: [:], expanded: expandedWindowIDs)
         }
 
         if resetSelection {
@@ -268,6 +274,21 @@ final class SwitcherController {
         }
         let count = model.rows.count
         select(index: ((model.selectedIndex ?? 0) + offset + count) % count)
+    }
+
+    /// Collapsing from a tab row returns the selection to its window.
+    private func setSelectedWindowExpanded(_ expanded: Bool) {
+        guard let window = model.selected?.window, !window.tabs.isEmpty else {
+            return
+        }
+
+        if expanded {
+            expandedWindowIDs.insert(window.id)
+        } else {
+            expandedWindowIDs.remove(window.id)
+            model.selectedID = window.id
+        }
+        rebuildRows(resetSelection: false)
     }
 
     private func typeHint(_ key: String) {

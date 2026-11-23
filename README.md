@@ -9,7 +9,8 @@ Written in Swift with AppKit and SwiftUI. No dependencies.
 - **Per-window switching.** `⌘Tab` lists every window, including minimized ones and windows on other Spaces.
 - **Same-app cycling.** `` ⌘` `` cycles the windows of the frontmost app.
 - **Key hints.** Each app gets a letter that never changes. Hold `⌘`, type the letter to select that app, type it again for its next window.
-- **Search.** `⌥Tab` opens a fuzzy search over app names and window titles.
+- **Tabs.** `→` expands a window's native tabs (Ghostty, Terminal, Finder, Safari) so you can switch straight to one.
+- **Search.** `⌥Tab` opens a fuzzy search over app names, window titles and tab titles.
 - **Preview on demand.** Hold `Space` on a row to see the window.
 - **Multiple displays.** Show the switcher on the screen with the pointer, the screen with the focused window, the primary screen, or all of them. Optionally list only the windows on that display.
 - **Readable titles.** The trailing app name is removed, and editor windows lead with the project name.
@@ -67,6 +68,7 @@ The system `⌘Tab` is only turned off once Accessibility is granted. Relaunch S
 | `⇧` | Reverse direction |
 | `↑` `↓` | Move the selection |
 | `⌘` + hint | Select an app. Repeat for its next window |
+| `→` `←` | Show or hide the selected window's tabs |
 | `Space` (hold) | Preview the selected window |
 | `⌘⇧W` | Close window |
 | `⌘⇧M` | Minimize window |
@@ -96,7 +98,7 @@ Public macOS APIs cannot turn off the system switcher, list windows on other Spa
 - While a password field has secure input on, macOS delivers no keys to Swivel. The system switcher takes over until you leave the field.
 - If Swivel is force-killed, the system `⌘Tab` stays off until you relaunch Swivel or log out. A normal quit or a crash restores it.
 - `` ⌘` `` is bound to the key above Tab on an ANSI keyboard.
-- Browser tabs are not listed, only windows.
+- Tabs are listed for apps that use native macOS tabs. Chromium browsers, Firefox and VS Code draw their own and are not.
 
 ## Uninstall
 
