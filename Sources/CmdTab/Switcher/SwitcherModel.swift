@@ -1,6 +1,16 @@
 import AppKit
 import Observation
-import SwiftUI
+
+enum SwitcherMode {
+    case allWindows
+    case sameApp(pid_t)
+    case search
+
+    var isSearch: Bool {
+        if case .search = self { return true }
+        return false
+    }
+}
 
 struct SwitcherRow: Identifiable {
     let window: WindowInfo
@@ -16,13 +26,18 @@ final class SwitcherModel {
     var rows: [SwitcherRow] = []
     var selectedID: String?
     var query = ""
-    var isSearching = false
-    var showsPreview = true
-    var preview: NSImage?
-    var theme = Theme.glass
     var typedHint = ""
+    var isSearching = false
+    var theme = Theme.glass
+    var preview: NSImage?
+    var pinsPreview = false
+    var isPeeking = false
 
     @ObservationIgnored var onPick: ((String) -> Void)?
+
+    var showsPreview: Bool {
+        pinsPreview || isPeeking
+    }
 
     var selectedIndex: Int? {
         rows.firstIndex { $0.id == selectedID }

@@ -1,16 +1,19 @@
 import SwiftUI
 
 enum SwitcherLayout {
-    static let listWidth: CGFloat = 580
+    static let cornerRadius: CGFloat = 14
+    static let listWidth: CGFloat = 600
     static let previewWidth: CGFloat = 380
     static let appColumnWidth: CGFloat = 170
-    static let searchHeight: CGFloat = 40
+    static let rowHeight: CGFloat = 30
+    static let listPadding: CGFloat = 6
+    static let searchHeight: CGFloat = 46
     static let minimumPreviewHeight: CGFloat = 260
     static let maximumScreenFraction: CGFloat = 0.7
 
-    static func size(rows: Int, isSearching: Bool, showsPreview: Bool, screenHeight: CGFloat) -> CGSize {
-        var height = CGFloat(max(rows, 1)) * Theme.rowHeight
-        if isSearching {
+    static func size(for model: SwitcherModel, showsPreview: Bool, screenHeight: CGFloat) -> CGSize {
+        var height = CGFloat(max(model.rows.count, 1)) * rowHeight + listPadding * 2
+        if model.isSearching {
             height += searchHeight
         }
         if showsPreview {
@@ -33,7 +36,7 @@ struct SwitcherView: View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
                 if model.isSearching {
-                    searchField
+                    SearchField(query: model.query, theme: theme)
                 }
                 list
             }
@@ -41,24 +44,13 @@ struct SwitcherView: View {
 
             if model.showsPreview {
                 PreviewPane(row: model.selected, image: model.preview, theme: theme)
-                    .frame(width: SwitcherLayout.previewWidth)
             }
         }
-        .font(Theme.font)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .font(.system(size: 13))
         .background(theme.background)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 2) {
-            Text(model.query).foregroundStyle(theme.text)
-            Rectangle().fill(theme.text).frame(width: 1, height: 16)
-            Spacer()
-        }
-        .font(.system(size: 16))
-        .padding(.horizontal, 16)
-        .frame(height: SwitcherLayout.searchHeight)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(theme.divider).frame(height: 1)
+        .overlay {
+            RoundedRectangle(cornerRadius: SwitcherLayout.cornerRadius).strokeBorder(theme.border)
         }
     }
 
@@ -68,8 +60,8 @@ struct SwitcherView: View {
                 VStack(spacing: 0) {
                     if model.rows.isEmpty {
                         Text("No windows")
-                            .foregroundStyle(theme.appName)
-                            .frame(height: Theme.rowHeight)
+                            .foregroundStyle(theme.secondaryText)
+                            .frame(height: SwitcherLayout.rowHeight)
                     }
                     ForEach(model.rows) { row in
                         RowView(row: row, isSelected: row.id == model.selectedID, typedHint: model.typedHint, theme: theme)
@@ -77,11 +69,38 @@ struct SwitcherView: View {
                             .onTapGesture { model.onPick?(row.id) }
                     }
                 }
+                .padding(SwitcherLayout.listPadding)
             }
             .scrollIndicators(.never)
             .onChange(of: model.selectedID) { _, id in
                 proxy.scrollTo(id)
             }
+        }
+    }
+}
+
+private struct SearchField: View {
+    let query: String
+    let theme: Theme
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(theme.secondaryText)
+
+            if query.isEmpty {
+                Text("Search windows").foregroundStyle(theme.secondaryText)
+            } else {
+                Text(query).foregroundStyle(theme.text)
+            }
+            Spacer()
+        }
+        .font(.system(size: 18, weight: .light))
+        .lineLimit(1)
+        .padding(.horizontal, 16)
+        .frame(height: SwitcherLayout.searchHeight)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(theme.divider).frame(height: 1)
         }
     }
 }
@@ -97,7 +116,7 @@ private struct RowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 10) {
             highlighted(row.window.appName, matches: row.appNameMatches, base: isSelected ? theme.selectedAppName : theme.appName)
                 .frame(width: SwitcherLayout.appColumnWidth, alignment: .trailing)
 
@@ -114,27 +133,16 @@ private struct RowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if !row.hint.isEmpty {
-                hint
+                Keycap(hint: row.hint, typed: typedHint, isSelected: isSelected, theme: theme)
             }
         }
         .lineLimit(1)
         .truncationMode(.tail)
         .opacity(isDimmed ? 0.5 : 1)
-        .padding(.horizontal, 12)
-        .frame(height: Theme.rowHeight)
-        .background(isSelected ? theme.selection : .clear)
+        .padding(.horizontal, 8)
+        .frame(height: SwitcherLayout.rowHeight)
+        .background(isSelected ? theme.selection : .clear, in: RoundedRectangle(cornerRadius: 7))
         .contentShape(Rectangle())
-    }
-
-    private var hint: some View {
-        let typedCount = row.hint.hasPrefix(typedHint) ? typedHint.count : 0
-        let resting = isSelected ? theme.text.opacity(0.7) : theme.hint
-
-        return (
-            Text(row.hint.prefix(typedCount)).foregroundStyle(theme.text)
-                + Text(row.hint.dropFirst(typedCount)).foregroundStyle(resting)
-        )
-        .font(.system(size: 12, weight: .medium, design: .rounded))
     }
 
     private func highlighted(_ string: String, matches: Set<Int>, base: Color) -> Text {
@@ -151,6 +159,28 @@ private struct RowView: View {
     }
 }
 
+private struct Keycap: View {
+    let hint: String
+    let typed: String
+    let isSelected: Bool
+    let theme: Theme
+
+    var body: some View {
+        let typedCount = hint.hasPrefix(typed) ? typed.count : 0
+        let resting = isSelected ? theme.text.opacity(0.75) : theme.secondaryText
+
+        return (
+            Text(hint.prefix(typedCount)).foregroundStyle(theme.text)
+                + Text(hint.dropFirst(typedCount)).foregroundStyle(resting)
+        )
+        .font(.system(size: 11, weight: .semibold, design: .rounded))
+        .textCase(.uppercase)
+        .padding(.horizontal, 5)
+        .frame(minWidth: 20, minHeight: 18)
+        .background(isSelected ? theme.text.opacity(0.18) : theme.keycap, in: RoundedRectangle(cornerRadius: 5))
+    }
+}
+
 private struct PreviewPane: View {
     let row: SwitcherRow?
     let image: NSImage?
@@ -164,14 +194,16 @@ private struct PreviewPane: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .padding(16)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
+                    .padding(18)
             } else if let icon = row?.window.icon {
                 Image(nsImage: icon)
                     .resizable()
                     .frame(width: 96, height: 96)
             }
         }
+        .frame(width: SwitcherLayout.previewWidth)
         .overlay(alignment: .leading) {
             Rectangle().fill(theme.divider).frame(width: 1)
         }

@@ -1,17 +1,20 @@
 #!/bin/bash
-# Builds build/CmdTab.app. Pass --run to relaunch it afterwards.
+# Builds build/CmdTab.app.
+#   --install  copy it to /Applications
+#   --run      quit any running copy and launch the new one
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 APP="build/CmdTab.app"
-BUNDLE_ID="com.joelmale.cmdtab"
+BUNDLE_ID="${BUNDLE_ID:-com.joelmale.cmdtab}"
 
 swift build -c release
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$(swift build -c release --show-bin-path)/CmdTab" "$APP/Contents/MacOS/CmdTab"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -19,6 +22,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key><string>CmdTab</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
     <key>CFBundleName</key><string>CmdTab</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -35,10 +39,23 @@ PLIST
 # Accessibility and Screen Recording grants. A real identity keeps them.
 IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development/ {print $2; exit}')}"
 codesign --force --sign "${IDENTITY:--}" --identifier "$BUNDLE_ID" "$APP"
-
 echo "Built $APP (signed: ${IDENTITY:-ad-hoc})"
 
-if [[ "${1:-}" == "--run" ]]; then
-    pkill -x CmdTab && while pgrep -x CmdTab >/dev/null; do sleep 0.1; done || true
-    open "$APP"
-fi
+for flag in "$@"; do
+    case "$flag" in
+        --install)
+            rm -rf /Applications/CmdTab.app
+            cp -R "$APP" /Applications/CmdTab.app
+            APP="/Applications/CmdTab.app"
+            echo "Installed $APP"
+            ;;
+        --run)
+            pkill -x CmdTab && while pgrep -x CmdTab >/dev/null; do sleep 0.1; done || true
+            open "$APP"
+            ;;
+        *)
+            echo "Unknown option: $flag" >&2
+            exit 1
+            ;;
+    esac
+done

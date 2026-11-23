@@ -23,7 +23,7 @@ final class SwitcherPanel: NSPanel {
         blur.blendingMode = .behindWindow
         blur.state = .active
         blur.appearance = NSAppearance(named: .darkAqua)
-        blur.maskImage = Self.roundedMask(radius: Theme.cornerRadius)
+        blur.maskImage = Self.roundedMask(radius: SwitcherLayout.cornerRadius)
 
         let content = ClickThroughHostingView(rootView: SwitcherView(model: model))
         content.frame = blur.bounds
@@ -64,5 +64,66 @@ final class SwitcherPanel: NSPanel {
         image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
         image.resizingMode = .stretch
         return image
+    }
+}
+
+/// Owns one panel per screen the switcher is shown on.
+final class SwitcherPresenter {
+    var onClickOutside: (() -> Void)?
+
+    private static let fadeInDuration: TimeInterval = 0.08
+
+    private let model: SwitcherModel
+    private var panels: [SwitcherPanel] = []
+    private var screens: [NSScreen] = []
+    private var clickMonitor: Any?
+
+    init(model: SwitcherModel) {
+        self.model = model
+    }
+
+    func show(on screens: [NSScreen]) {
+        self.screens = screens
+        while panels.count < screens.count {
+            panels.append(SwitcherPanel(model: model))
+        }
+
+        layout()
+        for panel in panels.prefix(screens.count) {
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Self.fadeInDuration
+                panel.animator().alphaValue = 1
+            }
+        }
+
+        if clickMonitor == nil {
+            clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                self?.onClickOutside?()
+            }
+        }
+    }
+
+    func hide() {
+        panels.forEach { $0.orderOut(nil) }
+        screens = []
+
+        if let clickMonitor {
+            NSEvent.removeMonitor(clickMonitor)
+            self.clickMonitor = nil
+        }
+    }
+
+    func layout() {
+        for (panel, screen) in zip(panels, screens) {
+            let height = screen.visibleFrame.height
+            panel.place(
+                on: screen,
+                size: SwitcherLayout.size(for: model, showsPreview: model.showsPreview, screenHeight: height),
+                anchor: SwitcherLayout.size(for: model, showsPreview: model.pinsPreview, screenHeight: height),
+                pinTop: model.isSearching
+            )
+        }
     }
 }

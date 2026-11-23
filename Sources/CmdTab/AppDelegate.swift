@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
     private var permissionTimer: Timer?
+    private var secureInputTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Settings.registerDefaults()
@@ -40,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionTimer = nil
         tap.handler = { [controller] type, event in controller.handle(type, event) }
         NativeSwitcher.setEnabled(false)
+        secureInputTimer = NativeSwitcher.followSecureInput()
         WindowStore.shared.start()
     }
 

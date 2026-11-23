@@ -1,4 +1,5 @@
 import ApplicationServices
+import Carbon
 import CoreGraphics
 
 // Undocumented WindowServer and Accessibility entry points. Public API cannot
@@ -58,6 +59,20 @@ enum NativeSwitcher {
     static func setEnabled(_ enabled: Bool) {
         for hotKey in SymbolicHotKey.allCases {
             CGSSetSymbolicHotKeyEnabled(hotKey.rawValue, enabled)
+        }
+    }
+
+    /// Keys never reach an event tap while a password field has secure input
+    /// on, so the system switcher takes over until it is released.
+    static func followSecureInput() -> Timer {
+        var isNativeEnabled = false
+
+        return Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            let secureInput = IsSecureEventInputEnabled()
+            if secureInput != isNativeEnabled {
+                isNativeEnabled = secureInput
+                setEnabled(secureInput)
+            }
         }
     }
 

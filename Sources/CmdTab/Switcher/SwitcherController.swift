@@ -1,18 +1,9 @@
 import AppKit
 import CmdTabCore
 
+/// Runs one switching session at a time: from the hotkey that opens the
+/// switcher to the key release, Return or Escape that ends it.
 final class SwitcherController {
-    private enum Mode {
-        case allWindows
-        case sameApp(pid_t)
-        case search
-
-        var isSearch: Bool {
-            if case .search = self { return true }
-            return false
-        }
-    }
-
     private enum RowAction {
         case quit, close, minimize, hide
     }
@@ -23,25 +14,27 @@ final class SwitcherController {
 
     private let store = WindowStore.shared
     private let model = SwitcherModel()
-    private var mode: Mode?
+    private lazy var presenter = SwitcherPresenter(model: model)
+
+    private var mode: SwitcherMode?
     private var candidates: [WindowInfo] = []
-    private var panels: [SwitcherPanel] = []
-    private var visibleScreens: [NSScreen] = []
-    private var sessionScreens: [NSScreen] = []
-    private var scopeBounds: CGRect?
-    private var isPeeking = false
+    private var screens: [NSScreen] = []
+    private var displayBounds: CGRect?
     private var pendingShow: DispatchWorkItem?
-    private var clickMonitor: Any?
 
     init() {
         model.onPick = { [weak self] id in
             self?.model.selectedID = id
             self?.commit()
         }
+        presenter.onClickOutside = { [weak self] in
+            self?.end()
+        }
     }
 
     // MARK: - Keyboard
 
+    /// Returns true to swallow the event.
     func handle(_ type: CGEventType, _ event: CGEvent) -> Bool {
         let flags = event.flags
         let key = Int(event.getIntegerValueField(.keyboardEventKeycode))
@@ -88,8 +81,8 @@ final class SwitcherController {
         return false
     }
 
-    private func handleKeyDown(key: Int, flags: CGEventFlags, event: CGEvent, mode: Mode) {
-        let backwards = flags.contains(.maskShift)
+    private func handleKeyDown(key: Int, flags: CGEventFlags, event: CGEvent, mode: SwitcherMode) {
+        let shift = flags.contains(.maskShift)
         let command = flags.contains(.maskCommand)
 
         switch key {
@@ -98,24 +91,24 @@ final class SwitcherController {
         case KeyCode.returnKey, KeyCode.keypadEnter:
             commit()
         case KeyCode.tab, KeyCode.grave:
-            move(by: backwards ? -1 : 1)
+            move(by: shift ? -1 : 1)
         case KeyCode.down:
             move(by: 1)
         case KeyCode.up:
             move(by: -1)
-        case KeyCode.q where command && backwards:
+        case KeyCode.q where command && shift:
             perform(.quit)
-        case KeyCode.w where command && backwards:
+        case KeyCode.w where command && shift:
             perform(.close)
-        case KeyCode.m where command && backwards:
+        case KeyCode.m where command && shift:
             perform(.minimize)
-        case KeyCode.h where command && backwards:
+        case KeyCode.h where command && shift:
             perform(.hide)
         case KeyCode.space where !mode.isSearch:
             setPeeking(true)
         case KeyCode.delete where mode.isSearch:
             model.query = command ? "" : String(model.query.dropLast())
-            applyQuery(resetSelection: true)
+            rebuildRows(resetSelection: true)
         default:
             let typed = Self.characters(from: event)
             guard !typed.isEmpty else {
@@ -125,7 +118,7 @@ final class SwitcherController {
                 typeHint(typed.lowercased())
             } else if !command {
                 model.query += typed
-                applyQuery(resetSelection: true)
+                rebuildRows(resetSelection: true)
             }
         }
     }
@@ -142,24 +135,27 @@ final class SwitcherController {
         var buffer = [UniChar](repeating: 0, count: 4)
         plain.keyboardGetUnicodeString(maxStringLength: buffer.count, actualStringLength: &length, unicodeString: &buffer)
 
-        return String(utf16CodeUnits: buffer, count: length)
-            .filter { $0.unicodeScalars.allSatisfy { $0.value >= 0x20 && $0.value != 0x7f && !(0xf700...0xf8ff).contains($0.value) } }
+        let functionKeys: ClosedRange<UInt32> = 0xf700...0xf8ff
+        return String(utf16CodeUnits: buffer, count: length).filter { character in
+            character.unicodeScalars.allSatisfy { $0.value >= 0x20 && $0.value != 0x7f && !functionKeys.contains($0.value) }
+        }
     }
 
     // MARK: - Session
 
-    private func begin(_ mode: Mode, backwards: Bool) {
+    private func begin(_ mode: SwitcherMode, backwards: Bool) {
         self.mode = mode
+        screens = Settings.displayTarget.screens
+        displayBounds = Settings.currentDisplayOnly ? scopedDisplayBounds() : nil
+
         model.isSearching = mode.isSearch
-        model.query = ""
-        model.preview = nil
-        model.showsPreview = Settings.showPreview
         model.theme = Settings.theme.theme
+        model.pinsPreview = Settings.showPreview
+        model.isPeeking = false
+        model.query = ""
         model.typedHint = ""
+        model.preview = nil
         model.selectedID = nil
-        isPeeking = false
-        sessionScreens = Self.targetScreens()
-        scopeBounds = Settings.currentDisplayOnly ? Self.scopeBounds(for: sessionScreens) : nil
 
         reloadCandidates()
 
@@ -168,13 +164,17 @@ final class SwitcherController {
             return
         }
 
-        let start = backwards ? model.rows.count - 1 : min(1, model.rows.count - 1)
-        select(index: start)
+        select(index: backwards ? model.rows.count - 1 : min(1, model.rows.count - 1))
 
         if mode.isSearch {
-            show()
+            presenter.show(on: screens)
         } else {
-            let work = DispatchWorkItem { [weak self] in self?.show() }
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, self.mode != nil else {
+                    return
+                }
+                presenter.show(on: screens)
+            }
             pendingShow = work
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDelay, execute: work)
         }
@@ -198,13 +198,7 @@ final class SwitcherController {
         pendingShow?.cancel()
         pendingShow = nil
         mode = nil
-        panels.forEach { $0.orderOut(nil) }
-        visibleScreens = []
-
-        if let clickMonitor {
-            NSEvent.removeMonitor(clickMonitor)
-            self.clickMonitor = nil
-        }
+        presenter.hide()
     }
 
     private func perform(_ action: RowAction) {
@@ -226,6 +220,13 @@ final class SwitcherController {
         }
     }
 
+    /// With the switcher on every screen there is no single "its display", so
+    /// the pointer decides.
+    private func scopedDisplayBounds() -> CGRect? {
+        let screen = screens.count == 1 ? screens.first : NSScreen.underPointer
+        return screen?.displayBounds
+    }
+
     // MARK: - Rows
 
     private func reloadCandidates() {
@@ -233,48 +234,19 @@ final class SwitcherController {
             return
         }
 
-        let excluded = Settings.excludedApps
-
-        candidates = store.windows.filter { window in
-            if case .sameApp(let pid) = mode, window.pid != pid || window.windowID == nil {
-                return false
-            }
-            if let scopeBounds, let frame = window.frame, !scopeBounds.contains(CGPoint(x: frame.midX, y: frame.midY)) {
-                return false
-            }
-            return !excluded.contains(window.appName)
-                && (Settings.allSpaces || window.isOnCurrentSpace)
-                && (Settings.showMinimized || !window.isMinimized)
-                && (Settings.showHidden || !window.isAppHidden)
-                && (Settings.showWindowlessApps || window.windowID != nil)
-        }
-
-        applyQuery(resetSelection: false)
+        candidates = SwitcherRows.candidates(in: store.windows, mode: mode, displayBounds: displayBounds)
+        rebuildRows(resetSelection: false)
     }
 
-    private func applyQuery(resetSelection: Bool) {
+    private func rebuildRows(resetSelection: Bool) {
         let previousIndex = model.selectedIndex ?? 0
 
-        if model.query.isEmpty {
-            let hints = hintsForCandidates()
-            model.rows = candidates.map { SwitcherRow(window: $0, hint: hints[$0.appName] ?? "") }
+        if !model.query.isEmpty {
+            model.rows = SwitcherRows.rows(for: candidates, matching: model.query)
+        } else if Settings.keyHints, case .allWindows = mode {
+            model.rows = SwitcherRows.rows(for: candidates, hints: SwitcherRows.hints(for: candidates))
         } else {
-            model.rows = candidates
-                .compactMap { window -> (SwitcherRow, Int)? in
-                    guard let match = FuzzyMatcher.match(model.query, in: "\(window.appName) \(window.title)") else {
-                        return nil
-                    }
-                    let titleOffset = window.appName.count + 1
-                    let row = SwitcherRow(
-                        window: window,
-                        appNameMatches: Set(match.indices.filter { $0 < titleOffset }),
-                        titleMatches: Set(match.indices.filter { $0 >= titleOffset }.map { $0 - titleOffset })
-                    )
-                    return (row, match.score)
-                }
-                .enumerated()
-                .sorted { ($0.element.1, -$0.offset) > ($1.element.1, -$1.offset) }
-                .map(\.element.0)
+            model.rows = SwitcherRows.rows(for: candidates, hints: [:])
         }
 
         if resetSelection {
@@ -282,21 +254,19 @@ final class SwitcherController {
         } else if model.selectedIndex == nil {
             select(index: min(previousIndex, model.rows.count - 1))
         } else {
-            layout()
+            presenter.layout()
         }
     }
 
-    private func hintsForCandidates() -> [String: String] {
-        guard Settings.keyHints, case .allWindows = mode else {
-            return [:]
-        }
+    // MARK: - Selection
 
-        let known = Settings.hintAssignments
-        let hints = KeyHints.assign(candidates.map(\.appName), existing: known)
-        if hints != known {
-            Settings.hintAssignments = hints
+    private func move(by offset: Int) {
+        model.typedHint = ""
+        guard !model.rows.isEmpty else {
+            return
         }
-        return hints
+        let count = model.rows.count
+        select(index: ((model.selectedIndex ?? 0) + offset + count) % count)
     }
 
     private func typeHint(_ key: String) {
@@ -324,38 +294,25 @@ final class SwitcherController {
         }
     }
 
-    private func setPeeking(_ peeking: Bool) {
-        guard peeking != isPeeking else {
-            return
-        }
-
-        isPeeking = peeking
-        model.showsPreview = peeking || Settings.showPreview
-        select(index: model.selectedIndex ?? -1)
-    }
-
-    private func move(by offset: Int) {
-        model.typedHint = ""
-        guard !model.rows.isEmpty else {
-            return
-        }
-        let count = model.rows.count
-        select(index: ((model.selectedIndex ?? 0) + offset + count) % count)
-    }
-
     private func select(index: Int) {
-        guard model.rows.indices.contains(index) else {
-            model.selectedID = nil
-            model.preview = nil
-            layout()
+        let row = model.rows.indices.contains(index) ? model.rows[index] : nil
+        model.selectedID = row?.id
+        presenter.layout()
+        loadPreview(for: row)
+    }
+
+    private func setPeeking(_ peeking: Bool) {
+        guard peeking != model.isPeeking else {
             return
         }
 
-        let row = model.rows[index]
-        model.selectedID = row.id
-        layout()
+        model.isPeeking = peeking
+        presenter.layout()
+        loadPreview(for: model.selected)
+    }
 
-        guard model.showsPreview, let windowID = row.window.windowID else {
+    private func loadPreview(for row: SwitcherRow?) {
+        guard model.showsPreview, let row, let windowID = row.window.windowID else {
             model.preview = nil
             return
         }
@@ -365,84 +322,5 @@ final class SwitcherController {
                 self?.model.preview = image
             }
         }
-    }
-
-    // MARK: - Panels
-
-    private func show() {
-        guard mode != nil else {
-            return
-        }
-
-        visibleScreens = sessionScreens
-        while panels.count < visibleScreens.count {
-            panels.append(SwitcherPanel(model: model))
-        }
-
-        layout()
-        for (index, panel) in panels.enumerated() {
-            if index < visibleScreens.count {
-                panel.orderFrontRegardless()
-            } else {
-                panel.orderOut(nil)
-            }
-        }
-
-        if clickMonitor == nil {
-            clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-                self?.end()
-            }
-        }
-    }
-
-    private func layout() {
-        for (panel, screen) in zip(panels, visibleScreens) {
-            func size(showsPreview: Bool) -> CGSize {
-                SwitcherLayout.size(
-                    rows: model.rows.count,
-                    isSearching: model.isSearching,
-                    showsPreview: showsPreview,
-                    screenHeight: screen.visibleFrame.height
-                )
-            }
-
-            panel.place(
-                on: screen,
-                size: size(showsPreview: model.showsPreview),
-                anchor: size(showsPreview: isPeeking ? Settings.showPreview : model.showsPreview),
-                pinTop: model.isSearching
-            )
-        }
-    }
-
-    private static func screenUnderPointer() -> NSScreen? {
-        let pointer = NSEvent.mouseLocation
-        return NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
-    }
-
-    /// With the switcher on every screen there is no single "its display", so
-    /// the pointer decides.
-    private static func scopeBounds(for screens: [NSScreen]) -> CGRect? {
-        let screen = screens.count == 1 ? screens.first : screenUnderPointer()
-        let displayID = screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
-        return displayID.map(CGDisplayBounds)
-    }
-
-    private static func targetScreens() -> [NSScreen] {
-        let screens = NSScreen.screens
-        let fallback = NSScreen.main ?? screens.first
-
-        let chosen: [NSScreen?]
-        switch Settings.displayTarget {
-        case .all:
-            return screens
-        case .primary:
-            chosen = [screens.first]
-        case .focused:
-            chosen = [fallback]
-        case .mouse:
-            chosen = [screenUnderPointer() ?? fallback]
-        }
-        return chosen.compactMap { $0 }
     }
 }

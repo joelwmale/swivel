@@ -5,27 +5,27 @@ struct Theme {
     /// Drawn over the panel's blur; an opaque colour hides it.
     let background: Color
     let previewBackground: Color
+    let border: Color
     let divider: Color
     let selection: Color
     let text: Color
     let appName: Color
     let selectedAppName: Color
-    let hint: Color
+    let secondaryText: Color
+    let keycap: Color
     let highlight: Color
-
-    static let cornerRadius: CGFloat = 10
-    static let rowHeight: CGFloat = 27
-    static let font = Font.system(size: 13)
 
     static let glass = Theme(
         background: .black.opacity(0.28),
         previewBackground: .black.opacity(0.18),
+        border: .white.opacity(0.14),
         divider: .white.opacity(0.08),
         selection: Color(nsColor: .controlAccentColor),
         text: .white,
         appName: .white.opacity(0.7),
         selectedAppName: .white,
-        hint: .white.opacity(0.45),
+        secondaryText: .white.opacity(0.5),
+        keycap: .white.opacity(0.12),
         highlight: Color(hex: 0xffd60a)
     )
 
@@ -33,12 +33,14 @@ struct Theme {
     static let aura = Theme(
         background: Color(hex: 0x15141b),
         previewBackground: Color(hex: 0x110f18),
+        border: Color(hex: 0x2d2d2d),
         divider: Color(hex: 0x2d2d2d),
         selection: Color(hex: 0x2e2b38),
         text: Color(hex: 0xedecee),
         appName: Color(hex: 0x6d6d6d),
         selectedAppName: Color(hex: 0xa277ff),
-        hint: Color(hex: 0x6d6d6d),
+        secondaryText: Color(hex: 0x6d6d6d),
+        keycap: Color(hex: 0xedecee).opacity(0.08),
         highlight: Color(hex: 0xffca85)
     )
 }

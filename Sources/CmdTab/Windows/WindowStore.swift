@@ -20,10 +20,9 @@ final class WindowStore {
     private var unswitchableWindowIDs: Set<CGWindowID> = []
 
     private static let messagingTimeout: Float = 0.3
-    private static let minimumWindowSize = CGSize(width: 100, height: 50)
     private static let refreshDebounce: TimeInterval = 0.15
 
-    private struct AppSnapshot {
+    struct AppSnapshot {
         let pid: pid_t
         let name: String
         let icon: NSImage?
@@ -31,7 +30,7 @@ final class WindowStore {
     }
 
     func start() {
-        mru.seed(Self.onScreenWindowIDs().map(WindowInfo.id(forWindow:)))
+        mru.seed(WindowServer.onScreenWindowIDs().map(WindowInfo.id(forWindow:)))
 
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
@@ -153,8 +152,8 @@ final class WindowStore {
     // MARK: - Enumeration (on `queue`)
 
     private func collectWindows(for apps: [AppSnapshot]) -> [WindowInfo] {
-        let currentSpaces = Self.currentSpaceIDs()
-        let candidates = Self.windowIDsByProcess()
+        let currentSpaces = WindowServer.currentSpaceIDs()
+        let candidates = WindowServer.windowIDsByProcess()
         let liveWindowIDs = Set(candidates.values.joined())
         let livePIDs = Set(apps.map(\.pid))
 
@@ -165,61 +164,22 @@ final class WindowStore {
             observers[pid] = nil
         }
 
-        var result: [WindowInfo] = []
-
-        for app in apps {
+        return apps.flatMap { app -> [WindowInfo] in
             let appElement = AXUIElementCreateApplication(app.pid)
             AXUIElementSetMessagingTimeout(appElement, Self.messagingTimeout)
             observe(app.pid, app: appElement)
 
-            let elements = switchableElements(of: app.pid, app: appElement, candidates: candidates[app.pid] ?? [], currentSpaces: currentSpaces)
-
-            let appWindows = elements.compactMap { windowID, element -> WindowInfo? in
-                guard let size = element.size,
-                      size.width >= Self.minimumWindowSize.width,
-                      size.height >= Self.minimumWindowSize.height
-                else {
-                    return nil
-                }
-
-                let title: String = element.attribute(kAXTitleAttribute) ?? ""
-                let isMinimized: Bool = element.attribute(kAXMinimizedAttribute) ?? false
-                let spaces = Self.spaces(of: windowID)
-
-                return WindowInfo(
-                    id: WindowInfo.id(forWindow: windowID),
-                    windowID: windowID,
-                    pid: app.pid,
-                    appName: app.name,
-                    title: title.isEmpty ? app.name : WindowTitle.clean(title, appName: app.name),
-                    icon: app.icon,
-                    isMinimized: isMinimized,
-                    isAppHidden: app.isHidden,
-                    isOnCurrentSpace: spaces.isEmpty || !spaces.isDisjoint(with: currentSpaces),
-                    element: element,
-                    frame: element.position.map { CGRect(origin: $0, size: size) }
-                )
+            let windows = switchableElements(
+                of: app.pid,
+                app: appElement,
+                candidates: candidates[app.pid] ?? [],
+                currentSpaces: currentSpaces
+            ).compactMap { windowID, element in
+                WindowInfo(app: app, windowID: windowID, element: element, currentSpaces: currentSpaces)
             }
 
-            if appWindows.isEmpty {
-                result.append(WindowInfo(
-                    id: WindowInfo.id(forApp: app.pid),
-                    windowID: nil,
-                    pid: app.pid,
-                    appName: app.name,
-                    title: app.name,
-                    icon: app.icon,
-                    isMinimized: false,
-                    isAppHidden: app.isHidden,
-                    isOnCurrentSpace: true,
-                    element: nil,
-                    frame: nil
-                ))
-            }
-            result.append(contentsOf: appWindows)
+            return windows.isEmpty ? [WindowInfo(windowlessApp: app)] : windows
         }
-
-        return result
     }
 
     private func switchableElements(
@@ -253,7 +213,7 @@ final class WindowStore {
         let unresolved = candidates.filter { windowID in
             elements[windowID] == nil
                 && !unswitchableWindowIDs.contains(windowID)
-                && Self.isOnAnotherSpace(windowID, currentSpaces: currentSpaces)
+                && WindowServer.isOnAnotherSpace(windowID, currentSpaces: currentSpaces)
         }
 
         if !unresolved.isEmpty {
@@ -262,63 +222,5 @@ final class WindowStore {
         }
 
         return order.compactMap { windowID in elements[windowID].map { (windowID, $0) } }
-    }
-
-    // MARK: - WindowServer queries
-
-    private static func windowDescriptions(_ options: CGWindowListOption) -> [[String: Any]] {
-        CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-    }
-
-    private static func isNormalWindow(_ description: [String: Any]) -> Bool {
-        let layer = description[kCGWindowLayer as String] as? Int ?? -1
-        let alpha = description[kCGWindowAlpha as String] as? Double ?? 0
-        let bounds = (description[kCGWindowBounds as String] as? [String: CGFloat]) ?? [:]
-
-        return layer == 0
-            && alpha > 0
-            && bounds["Width", default: 0] >= minimumWindowSize.width
-            && bounds["Height", default: 0] >= minimumWindowSize.height
-    }
-
-    private static func onScreenWindowIDs() -> [CGWindowID] {
-        windowDescriptions([.optionOnScreenOnly, .excludeDesktopElements])
-            .filter(isNormalWindow)
-            .compactMap { $0[kCGWindowNumber as String] as? CGWindowID }
-    }
-
-    private static func windowIDsByProcess() -> [pid_t: [CGWindowID]] {
-        var byProcess: [pid_t: [CGWindowID]] = [:]
-
-        for description in windowDescriptions([.excludeDesktopElements]) where isNormalWindow(description) {
-            guard let pid = description[kCGWindowOwnerPID as String] as? pid_t,
-                  let windowID = description[kCGWindowNumber as String] as? CGWindowID
-            else {
-                continue
-            }
-            byProcess[pid, default: []].append(windowID)
-        }
-
-        return byProcess
-    }
-
-    private static func spaces(of windowID: CGWindowID) -> Set<CGSSpaceID> {
-        let allSpacesMask: Int32 = 7
-        let spaces = CGSCopySpacesForWindows(CGSMainConnectionID(), allSpacesMask, [windowID] as CFArray)
-        return Set((spaces as? [NSNumber] ?? []).map(\.uint64Value))
-    }
-
-    private static func isOnAnotherSpace(_ windowID: CGWindowID, currentSpaces: Set<CGSSpaceID>) -> Bool {
-        let spaces = spaces(of: windowID)
-        return !spaces.isEmpty && spaces.isDisjoint(with: currentSpaces)
-    }
-
-    private static func currentSpaceIDs() -> Set<CGSSpaceID> {
-        let displays = CGSCopyManagedDisplaySpaces(CGSMainConnectionID()) as? [[String: Any]] ?? []
-
-        return Set(displays.compactMap { display in
-            let current = display["Current Space"] as? [String: Any]
-            return (current?["id64"] as? NSNumber)?.uint64Value
-        })
     }
 }
