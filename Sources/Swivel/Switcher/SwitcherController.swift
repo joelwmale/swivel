@@ -280,18 +280,8 @@ final class SwitcherController {
         model.typedHint = step.typed
 
         let appRows = model.rows.indices.filter { model.rows[$0].hint == step.hint }
-        guard let first = appRows.first else {
-            return
-        }
-
-        if step.cycles {
-            let current = appRows.firstIndex(of: model.selectedIndex ?? -1) ?? -1
-            select(index: appRows[(current + 1) % appRows.count])
-        } else if first == 0, appRows.count > 1 {
-            // Row 0 is the window already in front; asking for its app means the next one.
-            select(index: appRows[1])
-        } else {
-            select(index: first)
+        if let row = KeyHints.row(among: appRows, selected: model.selectedIndex, cycles: step.cycles) {
+            select(index: row)
         }
     }
 

@@ -102,6 +102,18 @@ import Testing
     }
 }
 
+@Suite struct KeyHintRowTests {
+    @Test func firstPressLandsOnTheAppsFirstRowEvenWhenItIsTheFrontWindow() {
+        #expect(KeyHints.row(among: [0, 3], selected: 1, cycles: false) == 0)
+        #expect(KeyHints.row(among: [2, 5], selected: 1, cycles: false) == 2)
+    }
+
+    @Test func repeatedPressMovesToTheNextRowAndWraps() {
+        #expect(KeyHints.row(among: [0, 3], selected: 0, cycles: true) == 3)
+        #expect(KeyHints.row(among: [0, 3], selected: 3, cycles: true) == 0)
+    }
+}
+
 @Suite struct WindowTitleTests {
     @Test func stripsTheAppNameSuffix() {
         #expect(WindowTitle.clean("Pull requests - Brave", appName: "Brave Browser") == "Pull requests")

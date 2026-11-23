@@ -55,4 +55,17 @@ public enum KeyHints {
         }
         return Step(typed: "", hint: nil, cycles: false)
     }
+
+    /// Which of an app's rows a hint lands on: the first, or when the hint is
+    /// repeated, the one after the current selection.
+    public static func row(among appRows: [Int], selected: Int?, cycles: Bool) -> Int? {
+        guard let first = appRows.first else {
+            return nil
+        }
+        if cycles {
+            let current = selected.flatMap(appRows.firstIndex(of:)) ?? -1
+            return appRows[(current + 1) % appRows.count]
+        }
+        return first
+    }
 }
