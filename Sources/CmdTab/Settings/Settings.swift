@@ -39,15 +39,22 @@ enum SearchHotkey: String, CaseIterable, Identifiable {
     }
 }
 
-enum SwitcherFont: String, CaseIterable, Identifiable {
-    case mono, system
+enum ThemeChoice: String, CaseIterable, Identifiable {
+    case glass, aura
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .mono: "Monospaced"
-        case .system: "System"
+        case .glass: "Translucent"
+        case .aura: "Aura Dark"
+        }
+    }
+
+    var theme: Theme {
+        switch self {
+        case .glass: .glass
+        case .aura: .aura
         }
     }
 }
@@ -55,7 +62,8 @@ enum SwitcherFont: String, CaseIterable, Identifiable {
 enum SettingKey {
     static let displayTarget = "displayTarget"
     static let searchHotkey = "searchHotkey"
-    static let font = "font"
+    static let theme = "theme"
+    static let keyHints = "keyHints"
     static let showPreview = "showPreview"
     static let allSpaces = "allSpaces"
     static let showMinimized = "showMinimized"
@@ -70,7 +78,8 @@ enum Settings {
         defaults.register(defaults: [
             SettingKey.displayTarget: DisplayTarget.mouse.rawValue,
             SettingKey.searchHotkey: SearchHotkey.optionTab.rawValue,
-            SettingKey.font: SwitcherFont.mono.rawValue,
+            SettingKey.theme: ThemeChoice.glass.rawValue,
+            SettingKey.keyHints: true,
             SettingKey.showPreview: true,
             SettingKey.allSpaces: true,
             SettingKey.showMinimized: true,
@@ -87,9 +96,11 @@ enum Settings {
         SearchHotkey(rawValue: defaults.string(forKey: SettingKey.searchHotkey) ?? "") ?? .optionTab
     }
 
-    static var font: SwitcherFont {
-        SwitcherFont(rawValue: defaults.string(forKey: SettingKey.font) ?? "") ?? .mono
+    static var theme: ThemeChoice {
+        ThemeChoice(rawValue: defaults.string(forKey: SettingKey.theme) ?? "") ?? .glass
     }
+
+    static var keyHints: Bool { defaults.bool(forKey: SettingKey.keyHints) }
 
     static var showPreview: Bool { defaults.bool(forKey: SettingKey.showPreview) }
     static var allSpaces: Bool { defaults.bool(forKey: SettingKey.allSpaces) }

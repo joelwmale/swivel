@@ -1,33 +1,46 @@
 import AppKit
 import SwiftUI
 
-/// Aura Dark, taken from the VS Code theme's workbench colours.
-enum Theme {
-    static let background = Color(hex: 0x15141b)
-    static let previewBackground = Color(hex: 0x110f18)
-    static let border = Color(hex: 0x2d2d2d)
-    static let selection = Color(hex: 0x2e2b38)
-    static let text = Color(hex: 0xedecee)
-    static let muted = Color(hex: 0x6d6d6d)
-    static let accent = Color(hex: 0xa277ff)
-    static let highlight = Color(hex: 0xffca85)
+struct Theme {
+    /// Drawn over the panel's blur; an opaque colour hides it.
+    let background: Color
+    let previewBackground: Color
+    let divider: Color
+    let selection: Color
+    let text: Color
+    let appName: Color
+    let selectedAppName: Color
+    let hint: Color
+    let highlight: Color
 
-    static let cornerRadius: CGFloat = 12
-    static let rowHeight: CGFloat = 30
-    static let fontSize: CGFloat = 13
+    static let cornerRadius: CGFloat = 10
+    static let rowHeight: CGFloat = 27
+    static let font = Font.system(size: 13)
 
-    static func font(_ choice: SwitcherFont) -> Font {
-        switch choice {
-        case .system:
-            return .system(size: fontSize)
-        case .mono:
-            let preferred = "IBM Plex Mono"
-            if NSFontManager.shared.availableFontFamilies.contains(preferred) {
-                return .custom(preferred, size: fontSize)
-            }
-            return .system(size: fontSize, design: .monospaced)
-        }
-    }
+    static let glass = Theme(
+        background: .black.opacity(0.28),
+        previewBackground: .black.opacity(0.18),
+        divider: .white.opacity(0.08),
+        selection: Color(nsColor: .controlAccentColor),
+        text: .white,
+        appName: .white.opacity(0.7),
+        selectedAppName: .white,
+        hint: .white.opacity(0.45),
+        highlight: Color(hex: 0xffd60a)
+    )
+
+    /// Taken from the Aura Dark VS Code theme's workbench colours.
+    static let aura = Theme(
+        background: Color(hex: 0x15141b),
+        previewBackground: Color(hex: 0x110f18),
+        divider: Color(hex: 0x2d2d2d),
+        selection: Color(hex: 0x2e2b38),
+        text: Color(hex: 0xedecee),
+        appName: Color(hex: 0x6d6d6d),
+        selectedAppName: Color(hex: 0xa277ff),
+        hint: Color(hex: 0x6d6d6d),
+        highlight: Color(hex: 0xffca85)
+    )
 }
 
 extension Color {

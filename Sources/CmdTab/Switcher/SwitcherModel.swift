@@ -6,6 +6,7 @@ struct SwitcherRow: Identifiable {
     let window: WindowInfo
     var appNameMatches: Set<Int> = []
     var titleMatches: Set<Int> = []
+    var hint = ""
 
     var id: String { window.id }
 }
@@ -18,7 +19,8 @@ final class SwitcherModel {
     var isSearching = false
     var showsPreview = true
     var preview: NSImage?
-    var font: Font = .system(size: Theme.fontSize)
+    var theme = Theme.glass
+    var typedHint = ""
 
     @ObservationIgnored var onPick: ((String) -> Void)?
 

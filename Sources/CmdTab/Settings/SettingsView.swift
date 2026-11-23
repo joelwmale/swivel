@@ -4,7 +4,8 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage(SettingKey.displayTarget) private var displayTarget = DisplayTarget.mouse
     @AppStorage(SettingKey.searchHotkey) private var searchHotkey = SearchHotkey.optionTab
-    @AppStorage(SettingKey.font) private var font = SwitcherFont.mono
+    @AppStorage(SettingKey.theme) private var theme = ThemeChoice.glass
+    @AppStorage(SettingKey.keyHints) private var keyHints = true
     @AppStorage(SettingKey.showPreview) private var showPreview = true
     @AppStorage(SettingKey.allSpaces) private var allSpaces = true
     @AppStorage(SettingKey.showMinimized) private var showMinimized = true
@@ -37,9 +38,10 @@ struct SettingsView: View {
                 Picker("Search hotkey", selection: $searchHotkey) {
                     ForEach(SearchHotkey.allCases) { Text($0.label).tag($0) }
                 }
-                Picker("Font", selection: $font) {
-                    ForEach(SwitcherFont.allCases) { Text($0.label).tag($0) }
+                Picker("Theme", selection: $theme) {
+                    ForEach(ThemeChoice.allCases) { Text($0.label).tag($0) }
                 }
+                Toggle("Key hints", isOn: $keyHints)
                 Toggle("Window preview", isOn: $showPreview)
             }
 
@@ -54,10 +56,11 @@ struct SettingsView: View {
                 KeyRow(keys: "⌘ Tab", action: "All windows")
                 KeyRow(keys: "⌘ `", action: "Windows of the current app")
                 KeyRow(keys: "⇧", action: "Reverse")
-                KeyRow(keys: "⌘ W", action: "Close window")
-                KeyRow(keys: "⌘ M", action: "Minimize window")
-                KeyRow(keys: "⌘ H", action: "Hide app")
-                KeyRow(keys: "⌘ Q", action: "Quit app")
+                KeyRow(keys: "⌘ + hint", action: "Jump to a window")
+                KeyRow(keys: "⌘ ⇧ W", action: "Close window")
+                KeyRow(keys: "⌘ ⇧ M", action: "Minimize window")
+                KeyRow(keys: "⌘ ⇧ H", action: "Hide app")
+                KeyRow(keys: "⌘ ⇧ Q", action: "Quit app")
             }
 
             Section {

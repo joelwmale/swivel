@@ -97,23 +97,25 @@ final class SwitcherController {
             move(by: 1)
         case KeyCode.up:
             move(by: -1)
-        case KeyCode.q where command:
+        case KeyCode.q where command && backwards:
             perform(.quit)
-        case KeyCode.w where command:
+        case KeyCode.w where command && backwards:
             perform(.close)
-        case KeyCode.m where command:
+        case KeyCode.m where command && backwards:
             perform(.minimize)
-        case KeyCode.h where command:
+        case KeyCode.h where command && backwards:
             perform(.hide)
         case KeyCode.delete where mode.isSearch:
             model.query = command ? "" : String(model.query.dropLast())
             applyQuery(resetSelection: true)
         default:
-            guard mode.isSearch, !command else {
+            let typed = Self.characters(from: event)
+            guard !typed.isEmpty else {
                 return
             }
-            let typed = Self.characters(from: event)
-            if !typed.isEmpty {
+            if !mode.isSearch {
+                typeHint(typed.lowercased())
+            } else if !command {
                 model.query += typed
                 applyQuery(resetSelection: true)
             }
@@ -121,11 +123,12 @@ final class SwitcherController {
     }
 
     private static func characters(from event: CGEvent) -> String {
-        // The search hotkey's modifier may still be down for the first letters.
+        // Command is held throughout a Cmd+Tab session, and the search hotkey's
+        // modifier may still be down for the first letters.
         guard let plain = event.copy() else {
             return ""
         }
-        plain.flags = plain.flags.subtracting([.maskAlternate, .maskControl])
+        plain.flags = plain.flags.subtracting([.maskCommand, .maskAlternate, .maskControl])
 
         var length = 0
         var buffer = [UniChar](repeating: 0, count: 4)
@@ -143,7 +146,8 @@ final class SwitcherController {
         model.query = ""
         model.preview = nil
         model.showsPreview = Settings.showPreview
-        model.font = Theme.font(Settings.font)
+        model.theme = Settings.theme.theme
+        model.typedHint = ""
         model.selectedID = nil
 
         reloadCandidates()
@@ -235,7 +239,11 @@ final class SwitcherController {
         let previousIndex = model.selectedIndex ?? 0
 
         if model.query.isEmpty {
-            model.rows = candidates.map { SwitcherRow(window: $0) }
+            let showsHints = Settings.keyHints && !model.isSearching
+            let hints = showsHints ? KeyHints.assign(to: candidates.map(\.appName)) : []
+            model.rows = candidates.enumerated().map { index, window in
+                SwitcherRow(window: window, hint: showsHints ? hints[index] : "")
+            }
         } else {
             model.rows = candidates
                 .compactMap { window -> (SwitcherRow, Int)? in
@@ -264,7 +272,27 @@ final class SwitcherController {
         }
     }
 
+    /// Hints are prefix-free, so an exact match can switch straight away.
+    private func typeHint(_ key: String) {
+        let hints = model.rows.map(\.hint)
+        var typed = model.typedHint + key
+        if !hints.contains(where: { $0.hasPrefix(typed) }) {
+            typed = key
+        }
+        guard hints.contains(where: { $0.hasPrefix(typed) }) else {
+            model.typedHint = ""
+            return
+        }
+
+        model.typedHint = typed
+        if let index = hints.firstIndex(of: typed) {
+            select(index: index)
+            commit()
+        }
+    }
+
     private func move(by offset: Int) {
+        model.typedHint = ""
         guard !model.rows.isEmpty else {
             return
         }

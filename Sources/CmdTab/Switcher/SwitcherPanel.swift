@@ -17,7 +17,20 @@ final class SwitcherPanel: NSPanel {
         hasShadow = true
         hidesOnDeactivate = false
         animationBehavior = .none
-        contentView = ClickThroughHostingView(rootView: SwitcherView(model: model))
+
+        let blur = NSVisualEffectView()
+        blur.material = .hudWindow
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        blur.appearance = NSAppearance(named: .darkAqua)
+        blur.maskImage = Self.roundedMask(radius: Theme.cornerRadius)
+
+        let content = ClickThroughHostingView(rootView: SwitcherView(model: model))
+        content.frame = blur.bounds
+        content.autoresizingMask = [.width, .height]
+        blur.addSubview(content)
+
+        contentView = blur
     }
 
     override var canBecomeKey: Bool { false }
@@ -35,5 +48,19 @@ final class SwitcherPanel: NSPanel {
             CGRect(x: area.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height),
             display: true
         )
+    }
+
+    /// A layer corner radius does not clip a behind-window blur; a stretchable
+    /// mask image does.
+    private static func roundedMask(radius: CGFloat) -> NSImage {
+        let edge = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 }

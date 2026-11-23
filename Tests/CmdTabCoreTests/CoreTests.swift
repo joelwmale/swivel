@@ -60,3 +60,18 @@ import Testing
         #expect(mru.order == ["a", "c"])
     }
 }
+
+@Suite struct KeyHintsTests {
+    @Test func uniqueInitialGetsOneLetter() {
+        #expect(KeyHints.assign(to: ["Brave Browser", "Finder", "1Password"]) == ["b", "f", "1"])
+    }
+
+    @Test func sharedInitialGetsASecondKeyAndNoHintPrefixesAnother() {
+        let hints = KeyHints.assign(to: ["Brave Browser", "Code", "Brave Browser", "Bear"])
+
+        #expect(hints == ["ba", "c", "bs", "bd"])
+        for hint in hints {
+            #expect(hints.filter { $0.hasPrefix(hint) }.count == 1)
+        }
+    }
+}
