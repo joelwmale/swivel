@@ -1,4 +1,3 @@
-import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
@@ -14,7 +13,7 @@ struct SettingsView: View {
     @AppStorage(SettingKey.currentDisplayOnly) private var currentDisplayOnly = false
     @AppStorage(SettingKey.excludedApps) private var excludedAppsStorage = ""
 
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var launchAtLoginError: String?
 
     var body: some View {
@@ -120,20 +119,12 @@ struct SettingsView: View {
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
-        guard enabled != (SMAppService.mainApp.status == .enabled) else {
-            return
-        }
-
         do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
+            try LaunchAtLogin.set(enabled)
             launchAtLoginError = nil
         } catch {
             launchAtLoginError = error.localizedDescription
-            launchAtLogin = !enabled
+            launchAtLogin = LaunchAtLogin.isEnabled
         }
     }
 }

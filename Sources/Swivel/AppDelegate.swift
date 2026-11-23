@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let controller = SwitcherController()
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
+    private var onboardingWindow: NSWindow?
     private var permissionTimer: Timer?
     private var secureInputTimer: Timer?
 
@@ -16,14 +17,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if Permissions.hasAccessibility {
             startSwitching()
-            return
+        } else {
+            permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                if Permissions.hasAccessibility {
+                    self?.startSwitching()
+                }
+            }
         }
 
-        showSettings()
-        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            if Permissions.hasAccessibility {
-                self?.startSwitching()
-            }
+        if !Settings.onboardingCompleted {
+            showOnboarding()
         }
     }
 
@@ -56,6 +59,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.menu = menu
 
         statusItem = item
+    }
+
+    private func showOnboarding() {
+        let view = OnboardingView { [weak self] in
+            Settings.onboardingCompleted = true
+            self?.onboardingWindow?.close()
+            self?.onboardingWindow = nil
+        }
+
+        let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
+        window.center()
+        onboardingWindow = window
+
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     @objc private func showSettings() {

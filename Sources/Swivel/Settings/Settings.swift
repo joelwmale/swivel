@@ -72,6 +72,7 @@ enum SettingKey {
     static let currentDisplayOnly = "currentDisplayOnly"
     static let excludedApps = "excludedApps"
     static let hintAssignments = "hintAssignments"
+    static let onboardingCompleted = "onboardingCompleted"
 }
 
 enum Settings {
@@ -115,6 +116,11 @@ enum Settings {
 
     static var excludedApps: Set<String> {
         ExcludedApps.decode(defaults.string(forKey: SettingKey.excludedApps) ?? "")
+    }
+
+    static var onboardingCompleted: Bool {
+        get { defaults.bool(forKey: SettingKey.onboardingCompleted) }
+        set { defaults.set(newValue, forKey: SettingKey.onboardingCompleted) }
     }
 
     static var hintAssignments: [String: String] {

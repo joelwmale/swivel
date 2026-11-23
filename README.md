@@ -49,7 +49,7 @@ swift test
 
 ## Permissions
 
-Swivel opens its settings window on first launch with a Grant button for each.
+Swivel walks you through these on first launch.
 
 | Permission | Needed for | Required |
 | --- | --- | --- |

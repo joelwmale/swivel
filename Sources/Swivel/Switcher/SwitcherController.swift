@@ -182,6 +182,7 @@ final class SwitcherController {
         store.refresh { [weak self] in
             self?.reloadCandidates()
         }
+        NotificationCenter.default.post(name: .switcherDidOpen, object: nil)
     }
 
     private func commit() {
