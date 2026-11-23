@@ -39,6 +39,6 @@ codesign --force --sign "${IDENTITY:--}" --identifier "$BUNDLE_ID" "$APP"
 echo "Built $APP (signed: ${IDENTITY:-ad-hoc})"
 
 if [[ "${1:-}" == "--run" ]]; then
-    pkill -x CmdTab || true
+    pkill -x CmdTab && while pgrep -x CmdTab >/dev/null; do sleep 0.1; done || true
     open "$APP"
 fi
